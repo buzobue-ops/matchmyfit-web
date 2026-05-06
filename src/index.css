@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── iOS system font ──────────────────────────────────────────────────── */
+:root {
+  --ios-blue: #007AFF;
+  --ios-green: #34C759;
+  --ios-red: #FF3B30;
+  --ios-gray6: #F2F2F7;
+  --ios-gray5: #E5E5EA;
+  --ios-gray4: #D1D1D6;
+  --ios-separator: rgba(60,60,67,0.29);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────────── */
+html, body, #root {
+  height: 100%;
+  min-height: 100%;
+  min-height: -webkit-fill-available;
+  overflow-x: hidden;
+}
+
+body {
+  background-color: var(--ios-gray6);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Helvetica Neue', Arial, sans-serif;
+  color: #000;
+}
+
+/* ─── Safe area helpers ────────────────────────────────────────────────── */
+.safe-top    { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-x      { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+
+/* ─── iOS-style components ─────────────────────────────────────────────── */
+@layer components {
+  /* Card / grouped inset background */
+  .ios-card {
+    @apply bg-white rounded-ios shadow-ios;
+  }
+
+  /* Inset grouped form section */
+  .ios-section {
+    @apply bg-white rounded-ios-lg overflow-hidden;
+  }
+
+  /* Row inside an ios-section */
+  .ios-row {
+    @apply flex items-center px-4 py-3.5 border-b border-ios-gray-5 last:border-b-0;
+  }
+
+  /* Primary button (filled blue) */
+  .ios-btn-primary {
+    @apply w-full py-3.5 rounded-ios bg-ios-blue text-white font-semibold text-base
+           active:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* Secondary button (text blue) */
+  .ios-btn-text {
+    @apply w-full py-3 text-ios-blue font-medium text-base
+           active:opacity-60 transition-opacity;
+  }
+
+  /* Large title (iOS navigation bar large title style) */
+  .ios-large-title {
+    @apply text-[34px] font-bold leading-tight tracking-tight;
+  }
+
+  /* iOS text field (inside a form row) */
+  .ios-input {
+    @apply flex-1 bg-transparent outline-none text-base text-black placeholder-ios-gray-2
+           min-w-0;
+  }
+
+  /* Navigation bar */
+  .ios-navbar {
+    @apply fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl
+           border-b border-ios-gray-5;
+  }
+
+  /* Status badge */
+  .badge-pending   { @apply text-[#FF9500] bg-[#FF9500]/10 text-xs font-medium px-2 py-0.5 rounded-full; }
+  .badge-completed { @apply text-[#34C759] bg-[#34C759]/10 text-xs font-medium px-2 py-0.5 rounded-full; }
+  .badge-failed    { @apply text-[#FF3B30] bg-[#FF3B30]/10 text-xs font-medium px-2 py-0.5 rounded-full; }
+}
+
+/* ─── Smooth page transitions ──────────────────────────────────────────── */
+.page-enter {
+  animation: pageEnter 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Spinner ──────────────────────────────────────────────────────────── */
+.spinner {
+  width: 22px; height: 22px;
+  border: 2.5px solid rgba(0,0,0,0.12);
+  border-top-color: var(--ios-blue);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+.spinner-white {
+  border-color: rgba(255,255,255,0.35);
+  border-top-color: #fff;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Scrollbar (hide on touch, subtle on desktop) ────────────────────── */
+::-webkit-scrollbar { width: 0; background: transparent; }
+@media (pointer: fine) {
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--ios-gray4); border-radius: 4px; }
+}
+
+/* ─── Image fit ────────────────────────────────────────────────────────── */
+img { max-width: 100%; }
+
+/* ─── Google GIS button override (make it full-width) ─────────────────── */
+#google-signin-btn iframe {
+  width: 100% !important;
+}
+#google-signin-btn > div {
+  width: 100% !important;
+}

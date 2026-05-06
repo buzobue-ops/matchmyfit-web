@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__6c59f7f1-af54-416d-a48e-064ef38384d9__get_workflow_details",
+      "Bash(npm install *)",
+      "Bash(npm run *)"
+    ]
+  }
+}
