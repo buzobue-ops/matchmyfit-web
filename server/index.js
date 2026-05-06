@@ -13,7 +13,9 @@ const N8N_LINK_PAGE_URL = 'https://buzobue.app.n8n.cloud/webhook/579403a2-94d1-4
 // CORS: accetta richieste dal dominio Aruba e da localhost in sviluppo
 const allowedOrigins = [
   'http://localhost:5173',
-  process.env.FRONTEND_URL, // es. https://www.tuodominio.it
+  'https://zerodb.studio',
+  'https://www.zerodb.studio',
+  process.env.FRONTEND_URL,
 ].filter(Boolean)
 
 app.use(cors({
