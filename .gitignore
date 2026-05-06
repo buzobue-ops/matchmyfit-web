@@ -1,0 +1,19 @@
+# Dipendenze
+node_modules/
+server/node_modules/
+
+# Build
+dist/
+
+# Variabili d'ambiente (contengono segreti - NON caricare mai su GitHub)
+.env
+.env.local
+.env.production
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor
+.vscode/
+.idea/
