@@ -86,7 +86,13 @@ app.post('/api/resume', async (req, res) => {
   const { resumeUrl } = req.query
   if (!resumeUrl) return res.status(400).json({ error: 'Missing resumeUrl' })
   console.log('[resume]', resumeUrl)
-  await proxyJSON(resumeUrl, req.body, res, 60000)
+  await proxyJSON(resumeUrl, req.body, res, 300000) // 5 min — image generation can take 2+ min
+})
+
+// Profile update (photo + measurements)
+app.post('/api/profile-update', async (req, res) => {
+  console.log('[profile-update] userId =', req.body.userId)
+  await proxyJSON('https://buzobue.app.n8n.cloud/webhook/matchmyfit-profile-update', req.body, res, 30000)
 })
 
 // Link search step
