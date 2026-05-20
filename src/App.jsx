@@ -48,10 +48,10 @@ export default function App() {
 
       let finalUser
       if (existingProfile && existingProfile.onboardingStep === 2) {
-        // Existing user with complete onboarding
+        // Existing user with complete onboarding — authUser.id (Google sub) always wins
         finalUser = {
-          ...authUser,
           ...existingProfile,
+          ...authUser,
           onboardingComplete: true,
         }
         saveUser(finalUser)
@@ -59,7 +59,7 @@ export default function App() {
         setRoute('search')
       } else if (existingProfile) {
         // Existing user but onboarding incomplete
-        finalUser = { ...authUser, ...existingProfile, onboardingComplete: false }
+        finalUser = { ...existingProfile, ...authUser, onboardingComplete: false }
         saveUser(finalUser)
         setUser(finalUser)
         setRoute('onboarding')

@@ -212,7 +212,7 @@ export async function sendCompleteProfile(user) {
   setResumeUrl(null)
 }
 
-// ─── Search: send link, receive text + image ──────────────────────────────
+// ─── Search: send link, receive text then photo (two-step Wait node) ─────────
 
 export async function sendLinkStep(link, userId, searchId, { onUpdate } = {}) {
   const payload = {
@@ -223,7 +223,8 @@ export async function sendLinkStep(link, userId, searchId, { onUpdate } = {}) {
     timestamp: new Date().toISOString(),
   }
 
-  const res = await postJSON(API.search, payload, 300000) // 5 min, same as iOS
+  // ── Step 1: send link → get taglia text + resumeUrl ──────────────────────
+  const res = await postJSON(API.search, payload, 300000) // 5 min — AI processing can take 2-3 min
   const { status, json } = await parseResponse(res)
 
   if (status >= 400) {
@@ -236,8 +237,67 @@ export async function sendLinkStep(link, userId, searchId, { onUpdate } = {}) {
     throw new Error(`Search failed (${status})`)
   }
 
-  if (json) {
-    applyResponseToResult(searchId, json, onUpdate)
+  const data = Array.isArray(json) ? json[0] : json
+  console.log('[search] step1 response', JSON.stringify(data)?.slice(0, 300))
+
+  if (!data) return
+
+  // Show text result immediately (mark as partial so UI shows photo loading)
+  const resumeUrl = data.resumeUrl || data.resume_url || data.waitUrl || data.wait_url || null
+  applyResponseToResult(searchId, data, onUpdate, resumeUrl ? 'partial' : 'completed')
+
+  if (!resumeUrl) return
+
+  // ── Step 2: send to resumeUrl → get modified photo ────────────────────────
+  // n8n needs a few seconds to register the Wait node after responding
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+  try {
+    let step2Data = null
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      // Wait before each attempt: 4s first, then 6s between retries
+      await delay(attempt === 0 ? 4000 : 6000)
+
+      const encoded = encodeURIComponent(resumeUrl)
+      const res2 = await postJSON(`${API.resume}?resumeUrl=${encoded}`, { searchId }, 300000)
+      const { status: s2, json: json2 } = await parseResponse(res2)
+
+      console.log(`[search] step2 attempt ${attempt + 1} status=${s2}`, JSON.stringify(json2)?.slice(0, 200))
+
+      if (s2 === 409) {
+        // Execution not yet at Wait node — retry
+        continue
+      }
+
+      if (s2 >= 400) break // real error, stop retrying
+
+      const d2 = Array.isArray(json2) ? json2[0] : json2
+      if (d2 && !d2.code && !d2.error) {
+        step2Data = d2
+      }
+      break
+    }
+
+    if (step2Data) {
+      applyResponseToResult(searchId, step2Data, onUpdate, 'completed')
+    } else {
+      // Photo didn't arrive — mark completed with just the text
+      const history = loadSearchHistory()
+      const existing = history.find(r => r.id === searchId)
+      if (existing) {
+        updateSearchResult({ ...existing, status: 'completed' })
+        onUpdate?.({ ...existing, status: 'completed' })
+      }
+    }
+  } catch (err) {
+    console.error('[search] photo step failed', err.message)
+    const history = loadSearchHistory()
+    const existing = history.find(r => r.id === searchId)
+    if (existing) {
+      updateSearchResult({ ...existing, status: 'completed' })
+      onUpdate?.({ ...existing, status: 'completed' })
+    }
   }
 }
 
@@ -254,18 +314,40 @@ function decodeBase64Image(raw) {
   return raw.replace(/^data:image\/[^;]+;base64,/, '')
 }
 
-export function applyResponseToResult(searchId, json, onUpdate) {
+export function applyResponseToResult(searchId, json, onUpdate, status = 'completed') {
   if (!json) return
 
-  const text = decodeURLText(json.text ?? json.message)
+  // n8n often returns an array — unwrap it
+  const data = Array.isArray(json) ? json[0] : json
+  if (!data) return
+
+  console.log('[n8n response]', JSON.stringify(data).slice(0, 500))
+
+  // Text: try every common field name n8n might use
+  const rawText =
+    data.text ?? data.message ?? data.output ?? data.recommendation ??
+    data.taglia ?? data.size ?? data.result ?? data.risposta ?? null
+  const text = decodeURLText(rawText)
+
+  // Image: accept both base64 and URL
+  const imageRaw =
+    data.imageBase64 ?? data.image ?? data.imageUrl ?? data.image_url ??
+    data.foto ?? data.photo ?? null
 
   let imageBase64 = null
-  const imageRaw = json.imageBase64 ?? json.image
-  if (typeof imageRaw === 'string' && !imageRaw.startsWith('http')) {
-    imageBase64 = decodeBase64Image(imageRaw)
+  let imageUrl = null
+
+  if (typeof imageRaw === 'string') {
+    if (imageRaw.startsWith('http')) {
+      imageUrl = imageRaw
+    } else {
+      imageBase64 = decodeBase64Image(imageRaw)
+    }
   }
 
-  const productName = decodeURLText(json.productName ?? json.product_name)
+  const productName = decodeURLText(
+    data.productName ?? data.product_name ?? data.nome ?? data.name ?? null
+  )
 
   const history = loadSearchHistory()
   const existing = history.find(r => r.id === searchId)
@@ -273,10 +355,11 @@ export function applyResponseToResult(searchId, json, onUpdate) {
 
   const updated = {
     ...existing,
-    ...(text ? { responseText: text } : {}),
+    ...(text        ? { responseText: text }               : {}),
     ...(imageBase64 ? { responseImageBase64: imageBase64 } : {}),
-    ...(productName ? { productName } : {}),
-    status: 'completed',
+    ...(imageUrl    ? { responseImageUrl: imageUrl }       : {}),
+    ...(productName ? { productName }                      : {}),
+    status,
   }
 
   updateSearchResult(updated)
@@ -285,4 +368,22 @@ export function applyResponseToResult(searchId, json, onUpdate) {
 
 export function resetOnboardingSession() {
   clearSession()
+}
+
+// ─── Update profile (measurements and/or photo) post-onboarding ───────────
+
+export async function sendProfileUpdate(userId, { measurements, imageBase64 }) {
+  const payload = {
+    userId,
+    timestamp: new Date().toISOString(),
+  }
+  if (measurements) payload.measurements = measurements
+  if (imageBase64) {
+    payload.imageBase64 = imageBase64
+    payload.imageSizeBytes = Math.round((imageBase64.length * 3) / 4)
+  }
+  // Calls n8n directly (CORS supported) — bypasses Railway proxy
+  const res = await postJSON('https://buzobue.app.n8n.cloud/webhook/matchmyfit-profile-update', payload, 90000)
+  const { status } = await parseResponse(res)
+  if (status >= 400) throw new Error(`Update failed (${status})`)
 }
