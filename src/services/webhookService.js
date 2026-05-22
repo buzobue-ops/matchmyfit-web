@@ -85,26 +85,35 @@ export async function checkAccountAndFetchProfile({ authProvider, providerUserId
   const { status, json } = await parseResponse(res)
   if (status >= 400 || !json) return null
 
+  // n8n sometimes wraps response in an array — unwrap it
+  const data = Array.isArray(json) ? json[0] : json
+  if (!data) return null
+
   const exists =
-    typeof json.exists === 'boolean' ? json.exists : String(json.exists).toLowerCase() === 'true'
+    typeof data.exists === 'boolean' ? data.exists : String(data.exists).toLowerCase() === 'true'
   if (!exists) return null
 
   // step can be int, string int, or "link"
   let onboardingStep = null
-  if (json.step !== undefined) {
-    const s = json.step
+  if (data.step !== undefined) {
+    const s = data.step
     if (typeof s === 'number') onboardingStep = s
     else if (String(s).toLowerCase() === 'link') onboardingStep = 2
     else onboardingStep = parseInt(s, 10) || null
   }
 
-  const userValue = json.user
+  const userValue = data.user
   let profile = null
 
   if (userValue && typeof userValue === 'object') {
     profile = { ...userValue }
   } else if (typeof userValue === 'string') {
     profile = { id: providerUserId, username: userValue, email, authProvider }
+  }
+
+  // Also accept flat response where username is at root level (no .user wrapper)
+  if (!profile && data.username) {
+    profile = { username: data.username, height: data.height, bodySizes: data.bodySizes }
   }
 
   if (profile && onboardingStep !== null) profile.onboardingStep = onboardingStep

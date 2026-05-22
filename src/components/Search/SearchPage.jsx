@@ -19,6 +19,7 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
   const [showProfileEdit, setShowProfileEdit] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
+  const [lightboxSrc, setLightboxSrc] = useState(null)
   const inputRef = useRef(null)
 
   const refresh = useCallback(() => {
@@ -125,6 +126,11 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
         />
       )}
 
+      {/* ── Lightbox (single, global) ── */}
+      {lightboxSrc && (
+        <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+      )}
+
       {/* ── Profile edit sheet ── */}
       {showProfileEdit && (
         <ProfileEditSheet
@@ -198,9 +204,11 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
         {latest && (
           <ResultCard
             result={latest}
+            user={user}
             isActive={latest.id === currentSearchId}
             expanded={expandedId === latest.id}
             onToggle={() => setExpandedId(id => id === latest.id ? null : latest.id)}
+            onOpenLightbox={setLightboxSrc}
           />
         )}
 
@@ -222,8 +230,10 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
                 <HistoryRow
                   key={result.id}
                   result={result}
+                  user={user}
                   expanded={expandedId === result.id}
                   onToggle={() => setExpandedId(id => id === result.id ? null : result.id)}
+                  onOpenLightbox={setLightboxSrc}
                 />
               ))}
             </div>
@@ -233,6 +243,17 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
         {history.length === 0 && !isSearching && (
           <EmptyState />
         )}
+
+        {/* Global feedback link */}
+        <div className="flex justify-center pb-8 pt-2">
+          <button
+            onClick={() => setShowFeedback(true)}
+            className="text-ios-gray-1 text-sm flex items-center gap-1.5 active:opacity-60 transition-opacity"
+          >
+            <span>⭐</span>
+            <span>Lascia un feedback su MatchMyFit</span>
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -290,51 +311,48 @@ function Lightbox({ src, onClose }) {
 }
 
 // ─── Result image with rotation + tap-to-expand ───────────────────────────
+// onOpen is provided by the parent (SearchPage) which manages the global lightbox
 
-function ResultImage({ src }) {
-  const [open, setOpen] = useState(false)
-
+function ResultImage({ src, onOpen }) {
   return (
-    <>
-      {/* Rotated thumbnail: landscape image → portrait display */}
-      <div
-        className="relative w-full rounded-ios bg-ios-gray-5 overflow-hidden cursor-pointer active:opacity-80 transition-opacity"
-        style={{ paddingTop: '133%' }}   /* 4:3 landscape → 3:4 portrait */
-        onClick={() => setOpen(true)}
-        title="Tocca per ingrandire"
-      >
-        <img
-          src={src}
-          alt="Risultato fit"
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            width: '133%',
-            height: '100%',
-            transform: 'translate(-50%, -50%) rotate(-90deg)',
-            objectFit: 'cover',
-          }}
-        />
-        {/* Expand hint */}
-        <div className="absolute bottom-2 right-2 bg-black/40 rounded-full p-1">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <path d="M10 2h4v4M6 14H2v-4M14 2l-5 5M2 14l5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
+    /* Use <button> for reliable click/tap on all platforms */
+    <button
+      type="button"
+      className="relative w-full rounded-ios bg-ios-gray-5 overflow-hidden active:opacity-80 transition-opacity"
+      style={{ paddingTop: '133%', display: 'block' }}   /* 4:3 landscape → 3:4 portrait */
+      onClick={(e) => { e.stopPropagation(); onOpen(src) }}
+      title="Tocca per ingrandire"
+    >
+      <img
+        src={src}
+        alt="Risultato fit"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: '133%',
+          height: '100%',
+          transform: 'translate(-50%, -50%) rotate(-90deg)',
+          objectFit: 'cover',
+        }}
+      />
+      {/* Expand hint */}
+      <div className="absolute bottom-2 right-2 bg-black/40 rounded-full p-1">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M10 2h4v4M6 14H2v-4M14 2l-5 5M2 14l5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
       </div>
-
-      {open && <Lightbox src={src} onClose={() => setOpen(false)} />}
-    </>
+    </button>
   )
 }
 
 // ─── Result card ──────────────────────────────────────────────────────────
 
-function ResultCard({ result, isActive, expanded, onToggle }) {
+function ResultCard({ result, user, isActive, expanded, onToggle, onOpenLightbox }) {
   const hasContent = result.responseText || result.responseImageBase64 || result.responseImageUrl
   const isPending = result.status === 'pending'
   const isPartial = result.status === 'partial'
+  const isCompleted = result.status === 'completed'
 
   return (
     <div className="ios-card overflow-hidden mb-3 animate-slide-up">
@@ -382,11 +400,11 @@ function ResultCard({ result, isActive, expanded, onToggle }) {
           )}
 
           {result.responseImageBase64 && (
-            <ResultImage src={`data:image/jpeg;base64,${result.responseImageBase64}`} />
+            <ResultImage src={`data:image/jpeg;base64,${result.responseImageBase64}`} onOpen={onOpenLightbox} />
           )}
 
           {result.responseImageUrl && !result.responseImageBase64 && (
-            <ResultImage src={result.responseImageUrl} />
+            <ResultImage src={result.responseImageUrl} onOpen={onOpenLightbox} />
           )}
 
           {isPartial && isActive && (
@@ -399,6 +417,15 @@ function ResultCard({ result, isActive, expanded, onToggle }) {
           {!hasContent && !isPending && !isPartial && result.status !== 'failed' && (
             <p className="text-ios-gray-1 text-sm text-center py-2">Nessun risultato.</p>
           )}
+
+          {isCompleted && hasContent && (
+            <MiniRatingRow
+              searchId={result.id}
+              productName={result.productName}
+              userId={user?.id}
+              username={user?.username}
+            />
+          )}
         </div>
       )}
     </div>
@@ -407,7 +434,10 @@ function ResultCard({ result, isActive, expanded, onToggle }) {
 
 // ─── History row ─────────────────────────────────────────────────────────
 
-function HistoryRow({ result, expanded, onToggle }) {
+function HistoryRow({ result, user, expanded, onToggle, onOpenLightbox }) {
+  const hasContent = result.responseText || result.responseImageBase64 || result.responseImageUrl
+  const isCompleted = result.status === 'completed'
+
   return (
     <div className="ios-card overflow-hidden">
       <button
@@ -440,20 +470,77 @@ function HistoryRow({ result, expanded, onToggle }) {
           )}
 
           {result.responseImageBase64 && (
-            <ResultImage src={`data:image/jpeg;base64,${result.responseImageBase64}`} />
+            <ResultImage src={`data:image/jpeg;base64,${result.responseImageBase64}`} onOpen={onOpenLightbox} />
           )}
 
           {result.responseImageUrl && !result.responseImageBase64 && (
-            <ResultImage src={result.responseImageUrl} />
+            <ResultImage src={result.responseImageUrl} onOpen={onOpenLightbox} />
           )}
 
-          {!result.responseText && !result.responseImageBase64 && !result.responseImageUrl && (
+          {!hasContent && (
             <p className="text-ios-gray-1 text-sm">
               {result.status === 'failed' ? 'Analisi non riuscita.' : 'Risultati non disponibili.'}
             </p>
           )}
+
+          {isCompleted && hasContent && (
+            <MiniRatingRow
+              searchId={result.id}
+              productName={result.productName}
+              userId={user?.id}
+              username={user?.username}
+            />
+          )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Mini rating row (per-result quick feedback) ─────────────────────────
+
+function MiniRatingRow({ searchId, productName, userId, username }) {
+  const [sent, setSent] = useState(false)
+  const [hovered, setHovered] = useState(0)
+
+  async function handleRate(rating) {
+    if (sent) return
+    setSent(true)
+    try {
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId || '',
+          username: username || '',
+          rating,
+          feedback: '',
+          page: 'result',
+          searchId: searchId || '',
+          productName: productName || '',
+        }),
+      })
+    } catch { /* silent */ }
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-ios-gray-5">
+      <span className="text-xs text-ios-gray-1 flex-1">
+        {sent ? '✓ Grazie per il feedback!' : 'Risultato utile?'}
+      </span>
+      {!sent && [1, 2, 3, 4, 5].map(star => (
+        <button
+          key={star}
+          type="button"
+          onMouseEnter={() => setHovered(star)}
+          onMouseLeave={() => setHovered(0)}
+          onClick={(e) => { e.stopPropagation(); handleRate(star) }}
+          className="text-base leading-none active:scale-90 transition-transform"
+          style={{ filter: hovered >= star ? 'none' : 'grayscale(1) opacity(0.35)' }}
+        >
+          ⭐
+        </button>
+      ))}
     </div>
   )
 }
