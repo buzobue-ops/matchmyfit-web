@@ -34,17 +34,18 @@ export default function App() {
     }
   }, [])
 
-  // ─── Helper: profile is fully onboarded if n8n says step 2,
-  //     OR if it has username + at least one body measurement.
-  //     This handles cases where check-account returns an outdated step value.
+  // ─── Helper: profile is fully onboarded.
+  //     n8n check-account may return only username (string) or a full object —
+  //     either way, if the account exists in the DB and has a username,
+  //     the user has completed enough onboarding to go straight to search.
+  //     Measurements/photo can always be updated later via "Modifica profilo".
   const profileIsComplete = useCallback((profile) => {
     if (!profile) return false
+    // Explicit step 2 / 'link' from n8n
     if (profile.onboardingStep === 2) return true
-    const m = profile.measurements || profile.bodySizes || {}
-    const hasMeasurements = !!(
-      profile.height || m.height || m.chest || m.waist || m.hips
-    )
-    return !!(profile.username && hasMeasurements)
+    // Username present means they went through at minimum step 1
+    if (profile.username) return true
+    return false
   }, [])
 
   // ─── Called by LoginPage after successful OAuth ───────────────────────
