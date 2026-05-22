@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import {
   loadSearchHistory,
   saveSearchResult,
   updateSearchResult,
   clearSearchHistory,
 } from '../../services/storageService.js'
-import { sendLinkStep, applyResponseToResult } from '../../services/webhookService.js'
+import { sendLinkStep, applyResponseToResult, sendProfileUpdate } from '../../services/webhookService.js'
 
 export default function SearchPage({ user, onSignOut, onUpdateUser }) {
   const [link, setLink] = useState('')
@@ -14,6 +14,7 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
   const [currentSearchId, setCurrentSearchId] = useState(null)
   const [error, setError] = useState(null)
   const [showAccount, setShowAccount] = useState(false)
+  const [showProfileEdit, setShowProfileEdit] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const inputRef = useRef(null)
 
@@ -102,6 +103,16 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
           user={user}
           onClose={() => setShowAccount(false)}
           onSignOut={onSignOut}
+          onEditProfile={() => { setShowAccount(false); setShowProfileEdit(true) }}
+        />
+      )}
+
+      {/* ── Profile edit sheet ── */}
+      {showProfileEdit && (
+        <ProfileEditSheet
+          user={user}
+          onClose={() => setShowProfileEdit(false)}
+          onSave={(updates) => { onUpdateUser(updates); setShowProfileEdit(false) }}
         />
       )}
 
@@ -209,11 +220,96 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
   )
 }
 
+// ─── Lightbox ─────────────────────────────────────────────────────────────
+
+function Lightbox({ src, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+      onClick={onClose}
+    >
+      {/* Close button */}
+      <button
+        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white z-10"
+        onClick={onClose}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+      </button>
+
+      {/* Image — rotated -90° to fix EXIF orientation, scaled to fill screen */}
+      <img
+        src={src}
+        alt="Risultato fit"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: '100vh',
+          maxHeight: '100vw',
+          objectFit: 'contain',
+          transform: 'rotate(-90deg)',
+        }}
+      />
+    </div>
+  )
+}
+
+// ─── Result image with rotation + tap-to-expand ───────────────────────────
+
+function ResultImage({ src }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      {/* Rotated thumbnail: landscape image → portrait display */}
+      <div
+        className="relative w-full rounded-ios bg-ios-gray-5 overflow-hidden cursor-pointer active:opacity-80 transition-opacity"
+        style={{ paddingTop: '133%' }}   /* 4:3 landscape → 3:4 portrait */
+        onClick={() => setOpen(true)}
+        title="Tocca per ingrandire"
+      >
+        <img
+          src={src}
+          alt="Risultato fit"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: '133%',
+            height: '100%',
+            transform: 'translate(-50%, -50%) rotate(-90deg)',
+            objectFit: 'cover',
+          }}
+        />
+        {/* Expand hint */}
+        <div className="absolute bottom-2 right-2 bg-black/40 rounded-full p-1">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M10 2h4v4M6 14H2v-4M14 2l-5 5M2 14l5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+      </div>
+
+      {open && <Lightbox src={src} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
 // ─── Result card ──────────────────────────────────────────────────────────
 
 function ResultCard({ result, isActive, expanded, onToggle }) {
-  const hasContent = result.responseText || result.responseImageBase64
+  const hasContent = result.responseText || result.responseImageBase64 || result.responseImageUrl
   const isPending = result.status === 'pending'
+  const isPartial = result.status === 'partial'
 
   return (
     <div className="ios-card overflow-hidden mb-3 animate-slide-up">
@@ -253,20 +349,29 @@ function ResultCard({ result, isActive, expanded, onToggle }) {
           )}
 
           {result.responseText && (
-            <p className="text-black text-[15px] leading-relaxed whitespace-pre-wrap mb-4">
-              {result.responseText}
-            </p>
+            <div className="bg-ios-blue/5 rounded-ios p-4 mb-4">
+              <p className="text-black text-[15px] leading-relaxed whitespace-pre-wrap">
+                {result.responseText}
+              </p>
+            </div>
           )}
 
           {result.responseImageBase64 && (
-            <img
-              src={`data:image/jpeg;base64,${result.responseImageBase64}`}
-              alt="Risultato fit"
-              className="w-full rounded-ios object-contain max-h-96 bg-ios-gray-5"
-            />
+            <ResultImage src={`data:image/jpeg;base64,${result.responseImageBase64}`} />
           )}
 
-          {!hasContent && !isPending && result.status !== 'failed' && (
+          {result.responseImageUrl && !result.responseImageBase64 && (
+            <ResultImage src={result.responseImageUrl} />
+          )}
+
+          {isPartial && isActive && (
+            <div className="flex items-center gap-2 mt-3 px-1">
+              <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+              <p className="text-ios-gray-1 text-sm">Generazione foto in corso…</p>
+            </div>
+          )}
+
+          {!hasContent && !isPending && !isPartial && result.status !== 'failed' && (
             <p className="text-ios-gray-1 text-sm text-center py-2">Nessun risultato.</p>
           )}
         </div>
@@ -310,14 +415,14 @@ function HistoryRow({ result, expanded, onToggle }) {
           )}
 
           {result.responseImageBase64 && (
-            <img
-              src={`data:image/jpeg;base64,${result.responseImageBase64}`}
-              alt="Risultato"
-              className="w-full rounded-ios object-contain max-h-72 bg-ios-gray-5"
-            />
+            <ResultImage src={`data:image/jpeg;base64,${result.responseImageBase64}`} />
           )}
 
-          {!result.responseText && !result.responseImageBase64 && (
+          {result.responseImageUrl && !result.responseImageBase64 && (
+            <ResultImage src={result.responseImageUrl} />
+          )}
+
+          {!result.responseText && !result.responseImageBase64 && !result.responseImageUrl && (
             <p className="text-ios-gray-1 text-sm">
               {result.status === 'failed' ? 'Analisi non riuscita.' : 'Risultati non disponibili.'}
             </p>
@@ -330,7 +435,7 @@ function HistoryRow({ result, expanded, onToggle }) {
 
 // ─── Account bottom sheet ────────────────────────────────────────────────
 
-function AccountSheet({ user, onClose, onSignOut }) {
+function AccountSheet({ user, onClose, onSignOut, onEditProfile }) {
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-40 animate-fade-in" onClick={onClose} />
@@ -370,6 +475,14 @@ function AccountSheet({ user, onClose, onSignOut }) {
           </div>
 
           <button
+            onClick={onEditProfile}
+            className="w-full py-3.5 rounded-ios text-ios-blue font-semibold text-base
+                       bg-ios-blue/10 active:bg-ios-blue/20 transition-colors mb-3"
+          >
+            Modifica profilo
+          </button>
+
+          <button
             onClick={onSignOut}
             className="w-full py-3.5 rounded-ios text-ios-red font-semibold text-base
                        bg-[#FF3B30]/10 active:bg-[#FF3B30]/20 transition-colors mb-2"
@@ -386,11 +499,228 @@ function AccountSheet({ user, onClose, onSignOut }) {
   )
 }
 
+// ─── Profile edit sheet ──────────────────────────────────────────────────
+
+const MEASURE_FIELDS = [
+  { key: 'height',    label: 'Altezza',  unit: 'cm', required: true },
+  { key: 'chest',     label: 'Petto',    unit: 'cm' },
+  { key: 'waist',     label: 'Vita',     unit: 'cm' },
+  { key: 'hips',      label: 'Fianchi',  unit: 'cm' },
+  { key: 'shoulders', label: 'Spalle',   unit: 'cm' },
+  { key: 'inseam',    label: 'Cavallo',  unit: 'cm' },
+]
+
+function ProfileEditSheet({ user, onClose, onSave }) {
+  const m = user.measurements || user.bodySizes || {}
+  const [measurements, setMeasurements] = useState({
+    height:    String(user.height    || m.height    || ''),
+    chest:     String(user.chest     || m.chest     || ''),
+    waist:     String(user.waist     || m.waist     || ''),
+    hips:      String(user.hips      || m.hips      || ''),
+    shoulders: String(user.shoulders || m.shoulders || ''),
+    inseam:    String(user.inseam    || m.inseam    || ''),
+  })
+  const [photoBase64, setPhotoBase64] = useState(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const cameraRef = useRef(null)
+  const galleryRef = useRef(null)
+
+  function handleMeasure(key, val) {
+    if (val !== '' && !/^\d*\.?\d*$/.test(val)) return
+    setMeasurements(prev => ({ ...prev, [key]: val }))
+  }
+
+  function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setPhotoBase64(reader.result.replace(/^data:image\/[^;]+;base64,/, ''))
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  async function handleSave() {
+    if (!measurements.height) {
+      setError("L'altezza è obbligatoria.")
+      return
+    }
+    setIsSaving(true)
+    setError(null)
+    try {
+      const meas = {}
+      MEASURE_FIELDS.forEach(f => {
+        if (measurements[f.key]) meas[f.key] = parseFloat(measurements[f.key])
+      })
+      await sendProfileUpdate(user.id, {
+        measurements: meas,
+        imageBase64: photoBase64 || undefined,
+      })
+      const updates = {
+        height: meas.height,
+        measurements: meas,
+        ...(photoBase64 ? { photoBase64 } : {}),
+      }
+      onSave(updates)
+    } catch (err) {
+      setError('Salvataggio non riuscito. Riprova.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-40 animate-fade-in" onClick={onClose} />
+      <div className="fixed inset-0 z-50 bg-ios-bg flex flex-col animate-slide-up">
+        {/* Nav */}
+        <div className="flex items-center justify-between px-4 safe-top"
+             style={{ height: 'calc(44px + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}>
+          <button onClick={onClose} className="text-ios-blue text-base font-normal py-2 pr-4">
+            Annulla
+          </button>
+          <span className="text-[17px] font-semibold text-black">Modifica profilo</span>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="text-ios-blue text-base font-semibold py-2 pl-4 disabled:opacity-40"
+          >
+            {isSaving ? 'Salvo…' : 'Salva'}
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-4 pb-10 pt-4">
+
+          {/* Measurements section */}
+          <h2 className="text-[13px] font-semibold text-ios-gray-1 uppercase tracking-wide mb-2 px-1">
+            Misure
+          </h2>
+          <div className="ios-section mb-6">
+            {MEASURE_FIELDS.map(field => (
+              <div key={field.key} className="ios-row">
+                <span className="text-base text-black flex-1">
+                  {field.label}
+                  {field.required && <span className="text-ios-red ml-1">*</span>}
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="text-right text-base text-black outline-none w-20
+                               placeholder-ios-gray-3 bg-transparent"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="0"
+                    value={measurements[field.key]}
+                    onChange={e => handleMeasure(field.key, e.target.value)}
+                    step="0.1"
+                    min="0"
+                    max="300"
+                  />
+                  <span className="text-ios-gray-2 text-sm w-6">{field.unit}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-ios-gray-2 text-xs px-1 -mt-4 mb-6">
+            Solo l'altezza è obbligatoria. Le altre misure migliorano l'accuratezza del fit.
+          </p>
+
+          {/* Photo section */}
+          <h2 className="text-[13px] font-semibold text-ios-gray-1 uppercase tracking-wide mb-2 px-1">
+            Foto
+          </h2>
+
+          {/* Mirror tip */}
+          <div className="flex items-start gap-2 rounded-ios px-4 py-3 mb-4"
+               style={{ backgroundColor: 'rgba(0,122,255,0.08)' }}>
+            <span className="text-lg leading-tight">💡</span>
+            <p className="text-ios-blue text-sm font-medium leading-snug">
+              È consigliato fare una foto allo specchio a figura intera
+            </p>
+          </div>
+
+          {/* Preview */}
+          {photoBase64 && (
+            <img
+              src={`data:image/jpeg;base64,${photoBase64}`}
+              alt="Nuova foto"
+              className="w-full max-h-72 object-contain rounded-ios-lg bg-ios-gray-5 mb-4"
+            />
+          )}
+
+          {/* Camera + Gallery buttons */}
+          <div className="flex gap-3 mb-2">
+            <button
+              onClick={() => cameraRef.current?.click()}
+              className="flex-1 py-3.5 rounded-ios border border-ios-blue
+                         text-ios-blue font-semibold text-base flex items-center justify-center gap-2
+                         active:bg-ios-blue/5 transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <rect x="1" y="4" width="16" height="12" rx="2.5" stroke="#007AFF" strokeWidth="1.5"/>
+                <circle cx="9" cy="10" r="3" stroke="#007AFF" strokeWidth="1.5"/>
+                <path d="M6 4l1.2-2h3.6L12 4" stroke="#007AFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Scatta foto
+            </button>
+            <button
+              onClick={() => galleryRef.current?.click()}
+              className="flex-1 py-3.5 rounded-ios border border-ios-blue
+                         text-ios-blue font-semibold text-base flex items-center justify-center gap-2
+                         active:bg-ios-blue/5 transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <rect x="2" y="2" width="14" height="14" rx="2.5" stroke="#007AFF" strokeWidth="1.5"/>
+                <path d="M2 12l4-4 3 3 2-2 5 5" stroke="#007AFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="6.5" cy="6.5" r="1.5" fill="#007AFF"/>
+              </svg>
+              Galleria
+            </button>
+          </div>
+
+          <p className="text-ios-gray-2 text-xs px-1 mb-2">
+            {photoBase64 ? 'Nuova foto selezionata.' : 'Lascia vuoto per mantenere la foto attuale.'}
+          </p>
+
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+          <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+
+          {/* Error */}
+          {error && (
+            <div className="bg-[#FF3B30]/10 rounded-ios p-4 mt-4">
+              <p className="text-[#FF3B30] text-sm">{error}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Fixed save button */}
+        <div className="px-4 safe-bottom pb-4 pt-3 bg-ios-bg border-t border-ios-gray-5">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="ios-btn-primary disabled:opacity-40"
+          >
+            {isSaving ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="spinner spinner-white" />
+                Salvataggio…
+              </span>
+            ) : 'Salva modifiche'}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Status dot ──────────────────────────────────────────────────────────
 
 function StatusDot({ status, active }) {
   const color = {
     pending: active ? '#007AFF' : '#FF9500',
+    partial: active ? '#007AFF' : '#FF9500',
     completed: '#34C759',
     failed: '#FF3B30',
   }[status] || '#8E8E93'
