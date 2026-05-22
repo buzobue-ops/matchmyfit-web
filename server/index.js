@@ -101,6 +101,12 @@ app.post('/api/search', async (req, res) => {
   await proxyJSON(N8N_LINK_PAGE_URL, req.body, res, 300000) // 5 min timeout like iOS
 })
 
+// Feedback
+app.post('/api/feedback', async (req, res) => {
+  console.log('[feedback] userId =', req.body.userId, 'rating =', req.body.rating)
+  await proxyJSON('https://buzobue.app.n8n.cloud/webhook/matchmyfit-feedback', req.body, res, 10000)
+})
+
 // SPA fallback – serve index.html for all other routes
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'))

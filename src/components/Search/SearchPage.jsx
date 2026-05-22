@@ -7,6 +7,7 @@ import {
   clearSearchHistory,
 } from '../../services/storageService.js'
 import { sendLinkStep, applyResponseToResult, sendProfileUpdate } from '../../services/webhookService.js'
+import { requestPermission, notifySearchComplete } from '../../services/notificationService.js'
 
 export default function SearchPage({ user, onSignOut, onUpdateUser }) {
   const [link, setLink] = useState('')
@@ -16,6 +17,7 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
   const [error, setError] = useState(null)
   const [showAccount, setShowAccount] = useState(false)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const inputRef = useRef(null)
 
@@ -37,6 +39,9 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
     setIsSearching(true)
     setError(null)
 
+    // Ask notification permission silently (first time only)
+    requestPermission()
+
     const result = {
       id: searchId,
       productLink: trimmed,
@@ -55,6 +60,9 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
       await sendLinkStep(trimmed, user.id, searchId, {
         onUpdate: (updated) => {
           setHistory(prev => prev.map(r => r.id === updated.id ? updated : r))
+          if (updated.status === 'completed') {
+            notifySearchComplete(updated.productName)
+          }
           setCurrentSearchId(null)
         },
       })
@@ -105,6 +113,15 @@ export default function SearchPage({ user, onSignOut, onUpdateUser }) {
           onClose={() => setShowAccount(false)}
           onSignOut={onSignOut}
           onEditProfile={() => { setShowAccount(false); setShowProfileEdit(true) }}
+          onFeedback={() => { setShowAccount(false); setShowFeedback(true) }}
+        />
+      )}
+
+      {/* ── Feedback modal ── */}
+      {showFeedback && (
+        <FeedbackModal
+          user={user}
+          onClose={() => setShowFeedback(false)}
         />
       )}
 
@@ -443,7 +460,7 @@ function HistoryRow({ result, expanded, onToggle }) {
 
 // ─── Account bottom sheet ────────────────────────────────────────────────
 
-function AccountSheet({ user, onClose, onSignOut, onEditProfile }) {
+function AccountSheet({ user, onClose, onSignOut, onEditProfile, onFeedback }) {
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-40 animate-fade-in" onClick={onClose} />
@@ -491,6 +508,14 @@ function AccountSheet({ user, onClose, onSignOut, onEditProfile }) {
           </button>
 
           <button
+            onClick={onFeedback}
+            className="w-full py-3.5 rounded-ios text-[#34C759] font-semibold text-base
+                       bg-[#34C759]/10 active:bg-[#34C759]/20 transition-colors mb-3"
+          >
+            ⭐ Lascia un feedback
+          </button>
+
+          <button
             onClick={onSignOut}
             className="w-full py-3.5 rounded-ios text-ios-red font-semibold text-base
                        bg-[#FF3B30]/10 active:bg-[#FF3B30]/20 transition-colors mb-2"
@@ -504,6 +529,128 @@ function AccountSheet({ user, onClose, onSignOut, onEditProfile }) {
         </div>
       </div>
     </>
+  )
+}
+
+// ─── Feedback modal ──────────────────────────────────────────────────────
+
+function FeedbackModal({ user, onClose }) {
+  const [rating, setRating] = useState(0)
+  const [hovered, setHovered] = useState(0)
+  const [text, setText] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function handleSubmit() {
+    if (rating === 0) { setError('Seleziona almeno una stella.'); return }
+    setIsSending(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          username: user.username || '',
+          rating,
+          feedback: text.trim(),
+          page: 'search',
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setSent(true)
+    } catch (err) {
+      setError('Invio non riuscito. Riprova.')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 bg-black/40 z-40 animate-fade-in" onClick={onClose} />
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-ios-xl safe-bottom
+                      animate-slide-up shadow-ios-lg">
+        <div className="w-10 h-1 bg-ios-gray-4 rounded-full mx-auto mt-3 mb-4" />
+
+        <div className="px-6 pb-6">
+          {sent ? (
+            <div className="flex flex-col items-center gap-3 py-6">
+              <span className="text-5xl">🎉</span>
+              <p className="text-black font-semibold text-[17px]">Grazie per il tuo feedback!</p>
+              <p className="text-ios-gray-1 text-sm text-center">
+                Il tuo commento ci aiuta a migliorare MatchMyFit.
+              </p>
+              <button
+                onClick={onClose}
+                className="mt-4 w-full py-3.5 rounded-ios bg-ios-blue text-white font-semibold text-base
+                           active:opacity-80 transition-opacity"
+              >
+                Chiudi
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-black font-semibold text-[17px] mb-1">La tua esperienza</p>
+              <p className="text-ios-gray-1 text-sm mb-5">
+                Raccontaci com'è andata con MatchMyFit
+              </p>
+
+              {/* Stars */}
+              <div className="flex justify-center gap-3 mb-5">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    onMouseEnter={() => setHovered(star)}
+                    onMouseLeave={() => setHovered(0)}
+                    onClick={() => setRating(star)}
+                    className="text-4xl transition-transform active:scale-90"
+                    style={{ filter: (hovered || rating) >= star ? 'none' : 'grayscale(1) opacity(0.4)' }}
+                  >
+                    ⭐
+                  </button>
+                ))}
+              </div>
+
+              {/* Text */}
+              <textarea
+                className="w-full rounded-ios bg-ios-gray-5 px-4 py-3 text-base text-black
+                           placeholder-ios-gray-3 outline-none resize-none leading-relaxed mb-4"
+                rows={4}
+                placeholder="Scrivi qui la tua esperienza (opzionale)…"
+                value={text}
+                onChange={e => setText(e.target.value)}
+                maxLength={500}
+              />
+
+              {error && (
+                <p className="text-ios-red text-sm mb-3">{error}</p>
+              )}
+
+              <button
+                onClick={handleSubmit}
+                disabled={isSending}
+                className="w-full py-3.5 rounded-ios bg-ios-blue text-white font-semibold text-base
+                           active:opacity-80 transition-opacity disabled:opacity-40 mb-3"
+              >
+                {isSending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="spinner spinner-white" />
+                    Invio…
+                  </span>
+                ) : 'Invia feedback'}
+              </button>
+
+              <button onClick={onClose} className="ios-btn-text">
+                Annulla
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </>,
+    document.body
   )
 }
 
