@@ -11,16 +11,35 @@ import MeasurementsStep from './MeasurementsStep.jsx'
 import PhotoStep from './PhotoStep.jsx'
 import LoadingOverlay from '../UI/LoadingOverlay.jsx'
 
-const TOTAL_STEPS = 3
+// ─── Derive a clean username from OAuth display name or email ─────────────
+function deriveUsername(user) {
+  if (user?.displayName) {
+    return user.displayName
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '')
+      .slice(0, 30) || 'user'
+  }
+  if (user?.email) {
+    return user.email.split('@')[0].replace(/[^a-z0-9_]/g, '').slice(0, 30) || 'user'
+  }
+  return 'user'
+}
 
 export default function OnboardingFlow({ user, onComplete, onUpdateUser }) {
+  // For OAuth users (Google/Apple) skip the username step entirely
+  const isOAuth = user?.authProvider === 'google' || user?.authProvider === 'apple'
+  const TOTAL_STEPS = isOAuth ? 2 : 3
+
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState('')
   const [error, setError] = useState(null)
 
-  // Step 1 data
-  const [username, setUsername] = useState(user?.username || '')
+  // Step 1 data — auto-filled for OAuth users
+  const [username, setUsername] = useState(
+    user?.username || (isOAuth ? deriveUsername(user) : '')
+  )
 
   // Step 2 data
   const [measurements, setMeasurements] = useState({
@@ -32,10 +51,15 @@ export default function OnboardingFlow({ user, onComplete, onUpdateUser }) {
   const [photoUploaded, setPhotoUploaded] = useState(false)
 
   // ─── Can proceed? ──────────────────────────────────────────────────
+  // isOAuth:     step 0 = measurements, step 1 = photo
+  // non-OAuth:   step 0 = username,     step 1 = measurements, step 2 = photo
+  const measurementsStep = isOAuth ? 0 : 1
+  const photoStep        = isOAuth ? 1 : 2
+
   const canProceed = (() => {
-    if (step === 0) return username.trim().length > 0
-    if (step === 1) return measurements.height.trim().length > 0
-    if (step === 2) return photoBase64 !== null && photoUploaded
+    if (!isOAuth && step === 0) return username.trim().length > 0
+    if (step === measurementsStep) return measurements.height.trim().length > 0
+    if (step === photoStep) return photoBase64 !== null && photoUploaded
     return false
   })()
 
@@ -45,14 +69,23 @@ export default function OnboardingFlow({ user, onComplete, onUpdateUser }) {
     setLoading(true)
 
     try {
-      if (step === 0) {
+      // Username step (non-OAuth only)
+      if (!isOAuth && step === 0) {
         setLoadingMsg('Salvataggio username…')
         await sendUsernameStep(user.id, username.trim())
         onUpdateUser({ username: username.trim() })
         setStep(1)
 
-      } else if (step === 1) {
+      // Measurements step
+      } else if (step === measurementsStep) {
         setLoadingMsg('Salvataggio misure…')
+
+        // For OAuth users, register username silently before measurements
+        if (isOAuth) {
+          await sendUsernameStep(user.id, username)
+          onUpdateUser({ username })
+        }
+
         const parsed = {
           height: parseFloat(measurements.height) || null,
           chest: parseFloat(measurements.chest) || null,
@@ -63,10 +96,10 @@ export default function OnboardingFlow({ user, onComplete, onUpdateUser }) {
         }
         await sendMeasurementsStep(user.id, parsed)
         onUpdateUser({ height: parsed.height, bodySizes: parsed })
-        setStep(2)
+        setStep(step + 1)
 
-      } else if (step === 2) {
-        // Photo already uploaded; send complete profile
+      // Photo step → finalize profile
+      } else if (step === photoStep) {
         setLoadingMsg('Completamento profilo…')
         const updatedUser = {
           ...user,
@@ -155,13 +188,13 @@ export default function OnboardingFlow({ user, onComplete, onUpdateUser }) {
         {loading && <LoadingOverlay message={loadingMsg} />}
 
         <div className="px-4 max-w-lg mx-auto w-full page-enter" key={step}>
-          {step === 0 && (
+          {!isOAuth && step === 0 && (
             <UsernameStep username={username} onChange={setUsername} />
           )}
-          {step === 1 && (
+          {step === measurementsStep && (
             <MeasurementsStep values={measurements} onChange={setMeasurements} />
           )}
-          {step === 2 && (
+          {step === photoStep && (
             <PhotoStep
               photoBase64={photoBase64}
               photoUploaded={photoUploaded}
