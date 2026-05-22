@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3001
 // n8n webhook URLs (mirrors AppConfig.swift)
 const N8N_ONBOARDING_URL = 'https://buzobue.app.n8n.cloud/webhook/aa94f233-cc9b-416f-8cbf-a7c5fae268c4'
 const N8N_CHECK_ACCOUNT_URL = 'https://buzobue.app.n8n.cloud/webhook/ea2e6b62-1998-4f9a-8c1f-3cd7409319c3'
-const N8N_LINK_PAGE_URL = 'https://buzobue.app.n8n.cloud/webhook/ef8326cc-ae9a-4cbc-a94c-b77014a3a167'
+const N8N_LINK_PAGE_URL = 'https://buzobue.app.n8n.cloud/webhook/ed39425a-e716-4273-adf5-a8e7779d19bf'
 
 // CORS: accetta richieste dal dominio Aruba e da localhost in sviluppo
 const allowedOrigins = [
