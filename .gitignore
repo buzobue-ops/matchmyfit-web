@@ -2,8 +2,8 @@
 node_modules/
 server/node_modules/
 
-# Build
-dist/
+# Build — dist/ viene committato così Railway non deve rifare il build
+# dist/
 
 # Variabili d'ambiente (contengono segreti - NON caricare mai su GitHub)
 .env
