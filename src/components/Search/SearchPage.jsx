@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   loadSearchHistory,
   saveSearchResult,
@@ -233,22 +234,28 @@ function Lightbox({ src, onClose }) {
     }
   }, [onClose])
 
-  return (
+  // Render via portal directly into document.body so no ancestor
+  // overflow:hidden or stacking context can clip it
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.95)',
+               display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={onClose}
     >
       {/* Close button */}
       <button
-        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white z-10"
+        style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36,
+                 borderRadius: '50%', background: 'rgba(255,255,255,0.2)',
+                 border: 'none', cursor: 'pointer', display: 'flex',
+                 alignItems: 'center', justifyContent: 'center' }}
         onClick={onClose}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          <path d="M1 1l12 12M13 1L1 13" stroke="white" strokeWidth="2" strokeLinecap="round"/>
         </svg>
       </button>
 
-      {/* Image — rotated -90° to fix EXIF orientation, scaled to fill screen */}
+      {/* Image — rotated -90° to correct orientation, sized to fit screen */}
       <img
         src={src}
         alt="Risultato fit"
@@ -260,7 +267,8 @@ function Lightbox({ src, onClose }) {
           transform: 'rotate(-90deg)',
         }}
       />
-    </div>
+    </div>,
+    document.body
   )
 }
 
