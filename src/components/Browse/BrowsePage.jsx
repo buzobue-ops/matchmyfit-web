@@ -20,18 +20,18 @@ const sans  = "'DM Sans', sans-serif"
 
 // ─── Quick-access brand tiles ─────────────────────────────────────────────
 const BRANDS = [
-  { name: 'Zara',     url: 'https://www.zara.com/it/',          emoji: '🔲' },
-  { name: 'H&M',      url: 'https://www2.hm.com/it_it/',        emoji: '🟥' },
-  { name: 'ASOS',     url: 'https://www.asos.com/',             emoji: '🖤' },
-  { name: 'Zalando',  url: 'https://www.zalando.it/',           emoji: '🟠' },
-  { name: 'Mango',    url: 'https://shop.mango.com/it/',        emoji: '🟡' },
-  { name: 'Pull&Bear',url: 'https://www.pullandbear.com/it/',   emoji: '🐻' },
-  { name: 'Bershka',  url: 'https://www.bershka.com/it/',      emoji: '🔵' },
-  { name: 'Stradivarius', url: 'https://www.stradivarius.com/it/', emoji: '🌿' },
-  { name: 'Nike',     url: 'https://www.nike.com/it/',          emoji: '✔️' },
-  { name: 'Adidas',   url: 'https://www.adidas.it/',            emoji: '🦓' },
-  { name: 'Uniqlo',   url: 'https://www.uniqlo.com/it/',        emoji: '🔴' },
-  { name: 'Amazon Fashion', url: 'https://www.amazon.it/s?rh=n%3A1772418031', emoji: '📦' },
+  { name: 'Zara',          url: 'https://www.zara.com/it/' },
+  { name: 'H&M',           url: 'https://www2.hm.com/it_it/' },
+  { name: 'ASOS',          url: 'https://www.asos.com/' },
+  { name: 'Zalando',       url: 'https://www.zalando.it/' },
+  { name: 'Mango',         url: 'https://shop.mango.com/it/' },
+  { name: 'Pull&Bear',     url: 'https://www.pullandbear.com/it/' },
+  { name: 'Bershka',       url: 'https://www.bershka.com/it/' },
+  { name: 'Stradivarius',  url: 'https://www.stradivarius.com/it/' },
+  { name: 'Nike',          url: 'https://www.nike.com/it/' },
+  { name: 'Adidas',        url: 'https://www.adidas.it/' },
+  { name: 'Uniqlo',        url: 'https://www.uniqlo.com/it/' },
+  { name: 'Amazon Fashion',url: 'https://www.amazon.it/s?rh=n%3A1772418031' },
 ]
 
 // ─── Add-link action sheet ─────────────────────────────────────────────────
@@ -352,28 +352,37 @@ export default function BrowsePage({ sharedUrl, onClearShared, onBack }) {
             Apri direttamente
           </div>
           <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
           }}>
-            {BRANDS.map(brand => (
-              <button
-                key={brand.name}
-                onClick={() => handleOpenBrand(brand.url)}
-                style={{
-                  background: 'white', border: `1.5px solid ${S.border}`,
-                  borderRadius: 14, padding: '10px 6px',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                  cursor: 'pointer', transition: 'all 0.15s',
-                  fontFamily: sans,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = S.warm; e.currentTarget.style.background = S.tagBg }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = S.border; e.currentTarget.style.background = 'white' }}
-              >
-                <span style={{ fontSize: 18 }}>{brand.emoji}</span>
-                <span style={{ fontSize: 9, fontWeight: 600, color: S.ink, textAlign: 'center', lineHeight: 1.2, letterSpacing: 0.3 }}>
-                  {brand.name}
-                </span>
-              </button>
-            ))}
+            {BRANDS.map(brand => {
+              // Two-letter abbreviation: first letters of each word, max 2
+              const abbr = brand.name.split(/[\s&]+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)
+              return (
+                <button
+                  key={brand.name}
+                  onClick={() => handleOpenBrand(brand.url)}
+                  style={{
+                    background: 'white', border: `1.5px solid ${S.border}`,
+                    borderRadius: 14, padding: '11px 8px',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                    fontFamily: sans, textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = S.warm; e.currentTarget.style.background = S.tagBg }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = S.border; e.currentTarget.style.background = 'white' }}
+                >
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                    background: S.tagBg,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10, fontWeight: 700, color: S.muted, letterSpacing: 0.5,
+                  }}>{abbr}</div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: S.ink, lineHeight: 1.2 }}>
+                    {brand.name}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </div>
 

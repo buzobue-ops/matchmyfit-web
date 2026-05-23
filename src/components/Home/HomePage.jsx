@@ -212,6 +212,19 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
       }}>
         <FitMyCartLogo />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Help / Cerca & Aggiungi */}
+          <button
+            onClick={onSelectBrowse}
+            title="Come funziona · Cerca & Aggiungi"
+            style={{
+              width: 38, height: 38, borderRadius: 12,
+              background: 'white', border: "1.5px solid #E2DAD0",
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 17, fontWeight: 700, color: '#8C8279',
+            }}
+          >?</button>
           {/* Cart icon */}
           <button
             onClick={onSelectCart}
@@ -343,10 +356,7 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
               </svg>
             </div>
           </div>
-          <div style={{
-            position: 'relative',
-            height: 0,
-          }}>
+          <div style={{ position: 'relative', height: 0 }}>
             <div style={{
               position: 'absolute', right: 20, bottom: 20,
               width: 28, height: 28, borderRadius: '50%',
@@ -354,41 +364,6 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'white', fontSize: 14,
             }}>→</div>
-          </div>
-        </button>
-
-        {/* CERCA & AGGIUNGI — tertiary */}
-        <button
-          onClick={onSelectBrowse}
-          style={{
-            borderRadius: 24, background: S.tagBg,
-            border: `1.5px solid ${S.border}`,
-            overflow: 'hidden', cursor: 'pointer',
-            textAlign: 'left', width: '100%',
-            transition: 'transform 0.18s ease',
-          }}
-          onMouseDown={e => e.currentTarget.style.transform = 'scale(0.97)'}
-          onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
-          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-        >
-          <div style={{ padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: S.muted, marginBottom: 4 }}>
-                Modalità 03
-              </div>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 700, color: S.ink, lineHeight: 1.15 }}>
-                Cerca &amp; Aggiungi
-              </div>
-              <div style={{ fontSize: 12, color: S.muted, marginTop: 6, lineHeight: 1.5 }}>
-                Naviga sul web e salva i link preferiti.
-              </div>
-            </div>
-            <div style={{
-              width: 52, height: 52, borderRadius: 14,
-              background: 'rgba(17,17,17,0.07)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 24, flexShrink: 0,
-            }}>🌐</div>
           </div>
         </button>
 
@@ -441,7 +416,7 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
 
       {/* ── Recent ── */}
       {history.length > 0 && (
-        <div style={{ padding: '28px 24px 32px' }}>
+        <div style={{ padding: '28px 24px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: '#111111' }}>Recenti</div>
             <button
@@ -456,6 +431,44 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
           </div>
         </div>
       )}
+
+      {/* ── Cerca & Aggiungi compact row ── */}
+      <div style={{ padding: history.length > 0 ? '16px 24px 32px' : '24px 24px 32px' }}>
+        <button
+          onClick={onSelectBrowse}
+          style={{
+            width: '100%', borderRadius: 16,
+            background: S.tagBg, border: `1px solid ${S.border}`,
+            padding: '13px 16px',
+            display: 'flex', alignItems: 'center', gap: 12,
+            cursor: 'pointer', textAlign: 'left',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = S.cream}
+          onMouseLeave={e => e.currentTarget.style.background = S.tagBg}
+        >
+          {/* globe icon */}
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: 'rgba(17,17,17,0.07)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={S.muted} strokeWidth="1.8" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/>
+            </svg>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: S.ink }}>Cerca &amp; Aggiungi</div>
+            <div style={{ fontSize: 11, color: S.muted, marginTop: 2 }}>
+              Naviga sul web e salva i link preferiti
+            </div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={S.muted} strokeWidth="1.5" strokeLinecap="round">
+            <path d="M6 3l5 5-5 5"/>
+          </svg>
+        </button>
+      </div>
 
       {/* ── Account sheet ── */}
       {showAccount && (
