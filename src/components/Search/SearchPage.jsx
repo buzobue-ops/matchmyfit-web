@@ -5,6 +5,8 @@ import {
   saveSearchResult,
   updateSearchResult,
   clearSearchHistory,
+  addToCart,
+  isInCart,
 } from '../../services/storageService.js'
 import { sendLinkStep, applyResponseToResult, sendProfileUpdate } from '../../services/webhookService.js'
 import { requestPermission, notifySearchComplete } from '../../services/notificationService.js'
@@ -25,7 +27,7 @@ const S = {
 const serif  = "'Cormorant Garamond', serif"
 const sans   = "'DM Sans', sans-serif"
 
-export default function SearchPage({ user, onBack, onSignOut, onUpdateUser, onOpenProfile }) {
+export default function SearchPage({ user, onBack, onSignOut, onUpdateUser, onOpenProfile, onOpenCart }) {
   const [link, setLink] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [history, setHistory] = useState([])
@@ -36,7 +38,14 @@ export default function SearchPage({ user, onBack, onSignOut, onUpdateUser, onOp
   const [showFeedback, setShowFeedback] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [lightboxSrc, setLightboxSrc] = useState(null)
+  const [cartCount, setCartCount] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('mmf_cart') || '[]').length } catch { return 0 }
+  })
   const inputRef = useRef(null)
+
+  function refreshCartCount() {
+    try { setCartCount(JSON.parse(localStorage.getItem('mmf_cart') || '[]').length) } catch { /* */ }
+  }
 
   const refresh = useCallback(() => {
     setHistory(loadSearchHistory().sort((a, b) =>
@@ -123,17 +132,48 @@ export default function SearchPage({ user, onBack, onSignOut, onUpdateUser, onOp
             Singolo Capo
           </span>
 
-          <button
-            onClick={() => setShowAccount(a => !a)}
-            style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: `linear-gradient(135deg, ${S.warm}, #8B6545)`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, color: 'white', fontWeight: 600, border: 'none', cursor: 'pointer',
-            }}
-          >
-            {(user.displayName || user.username || '?')[0].toUpperCase()}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Cart icon */}
+            <button
+              onClick={onOpenCart}
+              style={{
+                position: 'relative',
+                width: 36, height: 36, borderRadius: 12,
+                background: 'white', border: `1.5px solid ${S.border}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke={S.ink} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 2h1.5l2.5 8h7l1.5-5H5"/>
+                <circle cx="7" cy="13" r="1"/>
+                <circle cx="12" cy="13" r="1"/>
+              </svg>
+              {cartCount > 0 && (
+                <div style={{
+                  position: 'absolute', top: -4, right: -4,
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: S.warm, color: 'white',
+                  fontSize: 9, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: sans,
+                }}>{cartCount > 9 ? '9+' : cartCount}</div>
+              )}
+            </button>
+
+            {/* Avatar */}
+            <button
+              onClick={() => setShowAccount(a => !a)}
+              style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: `linear-gradient(135deg, ${S.warm}, #8B6545)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 13, color: 'white', fontWeight: 600, border: 'none', cursor: 'pointer',
+              }}
+            >
+              {(user.displayName || user.username || '?')[0].toUpperCase()}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -268,6 +308,7 @@ export default function SearchPage({ user, onBack, onSignOut, onUpdateUser, onOp
             expanded={expandedId === latest.id}
             onToggle={() => setExpandedId(id => id === latest.id ? null : latest.id)}
             onOpenLightbox={setLightboxSrc}
+            onCartAdded={refreshCartCount}
           />
         )}
 
@@ -297,6 +338,7 @@ export default function SearchPage({ user, onBack, onSignOut, onUpdateUser, onOp
                   expanded={expandedId === result.id}
                   onToggle={() => setExpandedId(id => id === result.id ? null : result.id)}
                   onOpenLightbox={setLightboxSrc}
+                  onCartAdded={refreshCartCount}
                 />
               ))}
             </div>
@@ -316,6 +358,57 @@ export default function SearchPage({ user, onBack, onSignOut, onUpdateUser, onOp
         </div>
       </div>
     </div>
+  )
+}
+
+// ─── Cart button ──────────────────────────────────────────────────────────
+
+function CartBtn({ result, onAdded }) {
+  const [inCart, setInCart] = useState(() => isInCart(result.productLink))
+  const [flash, setFlash] = useState(false)
+
+  function handleAdd(e) {
+    e.stopPropagation()
+    if (inCart) return
+    const added = addToCart({
+      id: result.id,
+      name: result.productName || result.productLink,
+      link: result.productLink,
+      price: null,
+      source: 'search',
+    })
+    if (added) {
+      setInCart(true)
+      setFlash(true)
+      setTimeout(() => setFlash(false), 1400)
+      onAdded?.()
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleAdd}
+      title={inCart ? 'Già nel carrello' : 'Aggiungi al carrello'}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '5px 10px', borderRadius: 10,
+        background: inCart ? S.tagBg : 'white',
+        border: `1.5px solid ${inCart ? S.warm : S.border}`,
+        color: inCart ? S.warm : S.muted,
+        fontFamily: sans, fontSize: 11, fontWeight: 600,
+        cursor: inCart ? 'default' : 'pointer',
+        transition: 'all 0.2s',
+        flexShrink: 0,
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 2h1.5l2.5 8h7l1.5-5H5"/>
+        <circle cx="7" cy="13" r="1"/>
+        <circle cx="12" cy="13" r="1"/>
+      </svg>
+      {flash ? '✓ Aggiunto' : inCart ? 'Nel carrello' : 'Carrello'}
+    </button>
   )
 }
 
@@ -424,7 +517,7 @@ function MiniRatingRow({ searchId, productName, userId, username }) {
 
 // ─── Result card ───────────────────────────────────────────────────────────
 
-function ResultCard({ result, user, isActive, expanded, onToggle, onOpenLightbox }) {
+function ResultCard({ result, user, isActive, expanded, onToggle, onOpenLightbox, onCartAdded }) {
   const hasContent = result.responseText || result.responseImageBase64 || result.responseImageUrl
   const isPending = result.status === 'pending'
   const isPartial = result.status === 'partial'
@@ -491,7 +584,12 @@ function ResultCard({ result, user, isActive, expanded, onToggle, onOpenLightbox
             <p style={{ fontSize: 12, color: S.muted, textAlign: 'center', padding: '8px 0' }}>Nessun risultato.</p>
           )}
           {isCompleted && hasContent && (
-            <MiniRatingRow searchId={result.id} productName={result.productName} userId={user?.id} username={user?.username} />
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 }}>
+                <CartBtn result={result} onAdded={onCartAdded} />
+              </div>
+              <MiniRatingRow searchId={result.id} productName={result.productName} userId={user?.id} username={user?.username} />
+            </>
           )}
         </div>
       )}
@@ -501,7 +599,7 @@ function ResultCard({ result, user, isActive, expanded, onToggle, onOpenLightbox
 
 // ─── History row ───────────────────────────────────────────────────────────
 
-function HistoryRow({ result, user, expanded, onToggle, onOpenLightbox }) {
+function HistoryRow({ result, user, expanded, onToggle, onOpenLightbox, onCartAdded }) {
   const hasContent = result.responseText || result.responseImageBase64 || result.responseImageUrl
   const isCompleted = result.status === 'completed'
 
@@ -551,7 +649,12 @@ function HistoryRow({ result, user, expanded, onToggle, onOpenLightbox }) {
             </p>
           )}
           {isCompleted && hasContent && (
-            <MiniRatingRow searchId={result.id} productName={result.productName} userId={user?.id} username={user?.username} />
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 }}>
+                <CartBtn result={result} onAdded={onCartAdded} />
+              </div>
+              <MiniRatingRow searchId={result.id} productName={result.productName} userId={user?.id} username={user?.username} />
+            </>
           )}
         </div>
       )}

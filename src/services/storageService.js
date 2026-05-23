@@ -7,6 +7,7 @@ const KEYS = {
   photoFolderName: 'mmf_photo_folder_name',
   linkStepResumeUrl: 'mmf_link_step_resume_url',
   searchHistory: 'mmf_search_history',
+  cart: 'mmf_cart',
 }
 
 // ─── User session ─────────────────────────────────────────────────────────
@@ -89,4 +90,41 @@ export function loadSearchHistory() {
 
 export function clearSearchHistory() {
   localStorage.removeItem(KEYS.searchHistory)
+}
+
+// ─── Cart ─────────────────────────────────────────────────────────────────
+// Each item: { id, name, link, price, source, addedAt }
+
+export function loadCart() {
+  try {
+    const raw = localStorage.getItem(KEYS.cart)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+export function addToCart(item) {
+  const cart = loadCart()
+  // Avoid duplicates by link
+  if (cart.some(c => c.link === item.link)) return false
+  cart.unshift({ ...item, addedAt: new Date().toISOString() })
+  localStorage.setItem(KEYS.cart, JSON.stringify(cart))
+  return true
+}
+
+export function removeFromCart(id) {
+  const cart = loadCart().filter(c => c.id !== id)
+  localStorage.setItem(KEYS.cart, JSON.stringify(cart))
+}
+
+export function updateCartItem(id, updates) {
+  const cart = loadCart().map(c => c.id === id ? { ...c, ...updates } : c)
+  localStorage.setItem(KEYS.cart, JSON.stringify(cart))
+}
+
+export function clearCart() {
+  localStorage.removeItem(KEYS.cart)
+}
+
+export function isInCart(link) {
+  return loadCart().some(c => c.link === link)
 }

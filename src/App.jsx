@@ -7,6 +7,7 @@ import HomePage from './components/Home/HomePage.jsx'
 import SearchPage from './components/Search/SearchPage.jsx'
 import OutfitPage from './components/Outfit/OutfitPage.jsx'
 import ProfilePage from './components/Profile/ProfilePage.jsx'
+import CartPage from './components/Cart/CartPage.jsx'
 import LoadingOverlay from './components/UI/LoadingOverlay.jsx'
 
 // ─── Route states ────────────────────────────────────────────────────────
@@ -17,6 +18,7 @@ import LoadingOverlay from './components/UI/LoadingOverlay.jsx'
 // 'search'     Singolo Capo mode
 // 'outfit'     Custom Outfit mode
 // 'profile'    dedicated profile / measurements page
+// 'cart'       shopping cart
 
 export default function App() {
   const [route, setRoute] = useState('loading')
@@ -153,6 +155,7 @@ export default function App() {
         onSelectSearch={() => setRoute('search')}
         onSelectOutfit={() => setRoute('outfit')}
         onSelectProfile={() => setRoute('profile')}
+        onSelectCart={() => setRoute('cart')}
         onSignOut={handleSignOut}
         onUpdateUser={handleUpdateUser}
       />
@@ -165,6 +168,7 @@ export default function App() {
         user={user}
         onBack={() => setRoute('home')}
         onSignOut={handleSignOut}
+        onOpenCart={() => setRoute('cart')}
       />
     )
   }
@@ -179,6 +183,14 @@ export default function App() {
     )
   }
 
+  if (route === 'cart') {
+    return (
+      <CartPage
+        onBack={() => setRoute('home')}
+      />
+    )
+  }
+
   return (
     <SearchPage
       user={user}
@@ -186,6 +198,7 @@ export default function App() {
       onSignOut={handleSignOut}
       onUpdateUser={handleUpdateUser}
       onOpenProfile={() => setRoute('profile')}
+      onOpenCart={() => setRoute('cart')}
     />
   )
 }

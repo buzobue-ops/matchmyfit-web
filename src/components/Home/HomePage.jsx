@@ -187,9 +187,10 @@ function RecentChip({ result }) {
 }
 
 // ─── HomePage ─────────────────────────────────────────────────────────────
-export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelectProfile, onSignOut, onUpdateUser }) {
+export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelectProfile, onSelectCart, onSignOut, onUpdateUser }) {
   const [showAccount, setShowAccount] = useState(false)
   const history = loadSearchHistory().slice(0, 6)
+  const cartCount = (() => { try { return JSON.parse(localStorage.getItem('mmf_cart') || '[]').length } catch { return 0 } })()
 
   return (
     <div style={{ minHeight: '100vh', background: '#FDFAF5', fontFamily: "'DM Sans', sans-serif" }}>
@@ -200,7 +201,36 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
       }}>
         <FitMyCartLogo />
-        <AvatarBtn user={user} onClick={() => setShowAccount(true)} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Cart icon */}
+          <button
+            onClick={onSelectCart}
+            style={{
+              position: 'relative',
+              width: 38, height: 38, borderRadius: 12,
+              background: 'white', border: "1.5px solid #E2DAD0",
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#111111" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 2h1.5l2.5 8h7l1.5-5H5"/>
+              <circle cx="7" cy="13" r="1"/>
+              <circle cx="12" cy="13" r="1"/>
+            </svg>
+            {cartCount > 0 && (
+              <div style={{
+                position: 'absolute', top: -4, right: -4,
+                width: 16, height: 16, borderRadius: '50%',
+                background: '#C8A882', color: 'white',
+                fontSize: 9, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: "'DM Sans', sans-serif",
+              }}>{cartCount > 9 ? '9+' : cartCount}</div>
+            )}
+          </button>
+          <AvatarBtn user={user} onClick={() => setShowAccount(true)} />
+        </div>
       </div>
 
       {/* ── Hero card ── */}

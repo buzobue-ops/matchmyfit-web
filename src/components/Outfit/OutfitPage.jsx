@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { loadSearchHistory } from '../../services/storageService.js'
+import { loadSearchHistory, addToCart, isInCart } from '../../services/storageService.js'
+import figureUrl from '../../assets/figure.png'
 
 // ─── Design tokens ────────────────────────────────────────────────────────
 const S = {
@@ -36,7 +37,7 @@ function FigurePanel({ activeSlot }) {
     }}>
       {/* Fashion illustration */}
       <img
-        src="/figure.png"
+        src={figureUrl}
         alt="Fashion illustration"
         style={{
           width: '100%',
@@ -91,8 +92,46 @@ function FigurePanel({ activeSlot }) {
   )
 }
 
+// ─── Mini cart add button (outfit) ────────────────────────────────────────
+function SlotCartBtn({ link, slotName, onAdded }) {
+  const [inCart, setInCart] = useState(() => isInCart(link))
+  const [flash, setFlash] = useState(false)
+
+  function handle(e) {
+    e.stopPropagation()
+    if (inCart) return
+    const id = crypto.randomUUID()
+    let hostname = link
+    try { hostname = new URL(link).hostname.replace('www.', '') } catch { /* */ }
+    const added = addToCart({ id, name: `${slotName} — ${hostname}`, link, price: null, source: 'outfit' })
+    if (added) { setInCart(true); setFlash(true); setTimeout(() => setFlash(false), 1400); onAdded?.() }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handle}
+      style={{
+        marginTop: 4,
+        display: 'flex', alignItems: 'center', gap: 4,
+        fontSize: 9, fontWeight: 700, fontFamily: sans,
+        color: inCart ? S.warm : S.muted,
+        background: 'none', border: 'none', cursor: inCart ? 'default' : 'pointer', padding: 0,
+        letterSpacing: 0.3,
+      }}
+    >
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 2h1.5l2.5 8h7l1.5-5H5"/>
+        <circle cx="7" cy="13" r="1"/>
+        <circle cx="12" cy="13" r="1"/>
+      </svg>
+      {flash ? '✓ aggiunto' : inCart ? 'nel carrello' : '+ carrello'}
+    </button>
+  )
+}
+
 // ─── Single slot card ─────────────────────────────────────────────────────
-function SlotCard({ slot, value, active, onClick, onClear }) {
+function SlotCard({ slot, value, active, onClick, onClear, onCartAdded }) {
   const filled = value.trim().length > 0
   return (
     <div
@@ -123,10 +162,13 @@ function SlotCard({ slot, value, active, onClick, onClear }) {
           <div style={{ fontSize: 10, color: S.ink, marginTop: 3, fontWeight: 500, wordBreak: 'break-all', lineHeight: 1.3 }}>
             {value.length > 32 ? value.slice(0, 32) + '…' : value}
           </div>
-          <button
-            onClick={e => { e.stopPropagation(); onClear() }}
-            style={{ marginTop: 3, fontSize: 9, color: S.warm, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: sans }}
-          >✕ rimuovi</button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 2 }}>
+            <button
+              onClick={e => { e.stopPropagation(); onClear() }}
+              style={{ fontSize: 9, color: S.muted, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: sans }}
+            >✕ rimuovi</button>
+            <SlotCartBtn link={value} slotName={slot.sublabel} onAdded={onCartAdded} />
+          </div>
         </>
       ) : (
         <div style={{ fontSize: 10, color: active ? S.warm : S.muted, fontWeight: 500, marginTop: 3 }}>
@@ -171,13 +213,20 @@ function HistoryChip({ result, onSelect }) {
 }
 
 // ─── OutfitPage ───────────────────────────────────────────────────────────
-export default function OutfitPage({ user, onBack }) {
+export default function OutfitPage({ user, onBack, onOpenCart }) {
   const [links, setLinks]           = useState({ top: '', mid: '', bottom: '' })
   const [activeSlot, setActiveSlot] = useState('top')
   const [inputVal, setInputVal]     = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [result, setResult]         = useState(null)
   const [error, setError]           = useState(null)
+  const [cartCount, setCartCount]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem('mmf_cart') || '[]').length } catch { return 0 }
+  })
+
+  function refreshCartCount() {
+    try { setCartCount(JSON.parse(localStorage.getItem('mmf_cart') || '[]').length) } catch { /* */ }
+  }
 
   // Load completed search history for chips
   const history = loadSearchHistory()
@@ -244,7 +293,33 @@ export default function OutfitPage({ user, onBack }) {
           }}
         >←</button>
         <div style={{ fontFamily: serif, fontSize: 18, fontWeight: 700, color: S.ink }}>Custom Outfit</div>
-        <div style={{ width: 36 }} />
+        {/* Cart icon */}
+        <button
+          onClick={onOpenCart}
+          style={{
+            position: 'relative',
+            width: 36, height: 36, borderRadius: 12,
+            background: 'white', border: `1.5px solid ${S.border}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke={S.ink} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 2h1.5l2.5 8h7l1.5-5H5"/>
+            <circle cx="7" cy="13" r="1"/>
+            <circle cx="12" cy="13" r="1"/>
+          </svg>
+          {cartCount > 0 && (
+            <div style={{
+              position: 'absolute', top: -4, right: -4,
+              width: 16, height: 16, borderRadius: '50%',
+              background: S.warm, color: 'white',
+              fontSize: 9, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: sans,
+            }}>{cartCount > 9 ? '9+' : cartCount}</div>
+          )}
+        </button>
       </div>
 
       <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -280,6 +355,7 @@ export default function OutfitPage({ user, onBack }) {
                 active={activeSlot === slot.id}
                 onClick={() => handleSlotClick(slot.id)}
                 onClear={() => setLinks(prev => ({ ...prev, [slot.id]: '' }))}
+                onCartAdded={refreshCartCount}
               />
             ))}
           </div>
