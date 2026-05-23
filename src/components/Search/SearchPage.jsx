@@ -25,7 +25,7 @@ const S = {
 const serif  = "'Cormorant Garamond', serif"
 const sans   = "'DM Sans', sans-serif"
 
-export default function SearchPage({ user, onBack, onSignOut, onUpdateUser }) {
+export default function SearchPage({ user, onBack, onSignOut, onUpdateUser, onOpenProfile }) {
   const [link, setLink] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [history, setHistory] = useState([])
@@ -143,7 +143,7 @@ export default function SearchPage({ user, onBack, onSignOut, onUpdateUser }) {
           user={user}
           onClose={() => setShowAccount(false)}
           onSignOut={onSignOut}
-          onEditProfile={() => { setShowAccount(false); setShowProfileEdit(true) }}
+          onEditProfile={() => { setShowAccount(false); if (onOpenProfile) onOpenProfile(); else setShowProfileEdit(true) }}
           onFeedback={() => { setShowAccount(false); setShowFeedback(true) }}
         />
       )}
@@ -350,7 +350,7 @@ function Lightbox({ src, onClose }) {
         src={src}
         alt="Risultato fit"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '100vh', maxHeight: '100vw', objectFit: 'contain', transform: 'rotate(-90deg)' }}
+        style={{ maxWidth: '100vh', maxHeight: '100vw', objectFit: 'contain', transform: 'rotate(90deg)' }}
       />
     </div>,
     document.body
@@ -372,7 +372,7 @@ function ResultImage({ src, onOpen }) {
         style={{
           position: 'absolute', top: '50%', left: '50%',
           width: '133%', height: '100%',
-          transform: 'translate(-50%, -50%) rotate(-90deg)',
+          transform: 'translate(-50%, -50%) rotate(90deg)',
           objectFit: 'cover',
         }}
       />

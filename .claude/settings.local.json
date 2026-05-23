@@ -37,7 +37,8 @@
       "Bash(find ~ -name \".env*\" 2>/dev/null | grep -v node_modules | grep -v \".git\" | head -20)",
       "Bash(python3 /tmp/gen_sdk_v2.py)",
       "WebFetch(domain:zerodb.studio)",
-      "WebFetch(domain:www.zerodb.studio)"
+      "WebFetch(domain:www.zerodb.studio)",
+      "Bash(chmod +x \"/Users/fabiosanna/Desktop/Sito - Matchmyfit/deploy.sh\")"
     ]
   }
 }

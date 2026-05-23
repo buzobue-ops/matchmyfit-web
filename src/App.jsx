@@ -6,6 +6,7 @@ import OnboardingFlow from './components/Onboarding/OnboardingFlow.jsx'
 import HomePage from './components/Home/HomePage.jsx'
 import SearchPage from './components/Search/SearchPage.jsx'
 import OutfitPage from './components/Outfit/OutfitPage.jsx'
+import ProfilePage from './components/Profile/ProfilePage.jsx'
 import LoadingOverlay from './components/UI/LoadingOverlay.jsx'
 
 // ─── Route states ────────────────────────────────────────────────────────
@@ -15,6 +16,7 @@ import LoadingOverlay from './components/UI/LoadingOverlay.jsx'
 // 'home'       authenticated + onboarding complete → mode selection
 // 'search'     Singolo Capo mode
 // 'outfit'     Custom Outfit mode
+// 'profile'    dedicated profile / measurements page
 
 export default function App() {
   const [route, setRoute] = useState('loading')
@@ -150,6 +152,7 @@ export default function App() {
         user={user}
         onSelectSearch={() => setRoute('search')}
         onSelectOutfit={() => setRoute('outfit')}
+        onSelectProfile={() => setRoute('profile')}
         onSignOut={handleSignOut}
         onUpdateUser={handleUpdateUser}
       />
@@ -166,12 +169,23 @@ export default function App() {
     )
   }
 
+  if (route === 'profile') {
+    return (
+      <ProfilePage
+        user={user}
+        onBack={() => setRoute('home')}
+        onSave={(updates) => { handleUpdateUser(updates); setRoute('home') }}
+      />
+    )
+  }
+
   return (
     <SearchPage
       user={user}
       onBack={() => setRoute('home')}
       onSignOut={handleSignOut}
       onUpdateUser={handleUpdateUser}
+      onOpenProfile={() => setRoute('profile')}
     />
   )
 }

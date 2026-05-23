@@ -61,7 +61,7 @@ function AvatarBtn({ user, onClick }) {
 }
 
 // ─── Account sheet ────────────────────────────────────────────────────────
-function AccountSheet({ user, onClose, onSignOut }) {
+function AccountSheet({ user, onClose, onSignOut, onEditProfile }) {
   return createPortal(
     <>
       <div
@@ -108,6 +108,18 @@ function AccountSheet({ user, onClose, onSignOut }) {
               <span style={{ fontSize: 13, color: '#8C8279', textTransform: 'capitalize' }}>{user?.authProvider}</span>
             </div>
           </div>
+
+          <button
+            onClick={onEditProfile}
+            style={{
+              width: '100%', padding: '14px', borderRadius: 14, marginBottom: 10,
+              background: '#F0EAE0', border: '1.5px solid #E2DAD0',
+              color: '#111111', fontFamily: "'DM Sans', sans-serif",
+              fontSize: 15, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            ✏️  Modifica profilo
+          </button>
 
           <button
             onClick={onSignOut}
@@ -175,7 +187,7 @@ function RecentChip({ result }) {
 }
 
 // ─── HomePage ─────────────────────────────────────────────────────────────
-export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSignOut, onUpdateUser }) {
+export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelectProfile, onSignOut, onUpdateUser }) {
   const [showAccount, setShowAccount] = useState(false)
   const history = loadSearchHistory().slice(0, 6)
 
@@ -376,6 +388,7 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSignO
           user={user}
           onClose={() => setShowAccount(false)}
           onSignOut={onSignOut}
+          onEditProfile={() => { setShowAccount(false); onSelectProfile?.() }}
         />
       )}
     </div>
