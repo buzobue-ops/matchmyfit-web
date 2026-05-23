@@ -25,15 +25,32 @@ const MEASURE_FIELDS = [
   { key: 'inseam',    label: 'Cavallo',  unit: 'cm' },
 ]
 
+// Read a numeric field from any of the common user-data locations returned by n8n
+function readField(user, key) {
+  if (!user) return ''
+  // Direct top-level key (e.g. user.height)
+  const direct = user[key]
+  if (direct != null && direct !== '') return String(direct)
+  // Nested under bodySizes (set by onboarding)
+  const bs = user.bodySizes
+  if (bs && bs[key] != null && bs[key] !== '') return String(bs[key])
+  // Nested under measurements (set by profile-update)
+  const ms = user.measurements
+  if (ms && ms[key] != null && ms[key] !== '') return String(ms[key])
+  // Nested under profile (sometimes returned by n8n)
+  const pr = user.profile
+  if (pr && pr[key] != null && pr[key] !== '') return String(pr[key])
+  return ''
+}
+
 export default function ProfilePage({ user, onBack, onSave }) {
-  const m = user?.measurements || user?.bodySizes || {}
   const [measurements, setMeasurements] = useState({
-    height:    String(user?.height    || m.height    || ''),
-    chest:     String(user?.chest     || m.chest     || ''),
-    waist:     String(user?.waist     || m.waist     || ''),
-    hips:      String(user?.hips      || m.hips      || ''),
-    shoulders: String(user?.shoulders || m.shoulders || ''),
-    inseam:    String(user?.inseam    || m.inseam    || ''),
+    height:    readField(user, 'height'),
+    chest:     readField(user, 'chest'),
+    waist:     readField(user, 'waist'),
+    hips:      readField(user, 'hips'),
+    shoulders: readField(user, 'shoulders'),
+    inseam:    readField(user, 'inseam'),
   })
   const [photoBase64, setPhotoBase64] = useState(null)
   const [isSaving, setIsSaving]   = useState(false)
