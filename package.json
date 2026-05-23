@@ -10,7 +10,8 @@
     "postinstall": "cd server && npm install",
     "start": "node server/index.js",
     "server": "node server/index.js",
-    "dev:full": "concurrently \"npm run dev\" \"npm run server\""
+    "dev:full": "concurrently \"npm run dev\" \"npm run server\"",
+    "deploy": "bash deploy.sh"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.1",

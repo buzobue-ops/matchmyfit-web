@@ -9,6 +9,7 @@ server/node_modules/
 .env
 .env.local
 .env.production
+.env.deploy         # credenziali FTP — mai in git!
 
 # macOS
 .DS_Store
