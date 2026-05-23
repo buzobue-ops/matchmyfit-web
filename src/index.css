@@ -2,8 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── iOS system font ──────────────────────────────────────────────────── */
+/* ─── Design tokens ─────────────────────────────────────────────────────── */
 :root {
+  /* FitMyCart palette */
+  --cream:   #F5F0E8;
+  --ink:     #111111;
+  --warm:    #C8A882;
+  --accent:  #E8D5B7;
+  --muted:   #8C8279;
+  --surface: #FDFAF5;
+  --fmc-border: #E2DAD0;
+  --tag-bg:  #F0EAE0;
+  --app-bg:  #EDEAE4;
+
+  /* Legacy iOS tokens (kept for compatibility) */
   --ios-blue: #007AFF;
   --ios-green: #34C759;
   --ios-red: #FF3B30;
@@ -11,6 +23,7 @@
   --ios-gray5: #E5E5EA;
   --ios-gray4: #D1D1D6;
   --ios-separator: rgba(60,60,67,0.29);
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -26,10 +39,9 @@ html, body, #root {
 }
 
 body {
-  background-color: var(--ios-gray6);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
-    'Helvetica Neue', Arial, sans-serif;
-  color: #000;
+  background-color: var(--app-bg);
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--ink);
 }
 
 /* ─── Safe area helpers ────────────────────────────────────────────────── */
@@ -128,4 +140,120 @@ img { max-width: 100%; }
 }
 #google-signin-btn > div {
   width: 100% !important;
+}
+
+/* ─── FitMyCart design system ───────────────────────────────────────────── */
+@layer components {
+  /* Page wrapper */
+  .fmc-page {
+    @apply min-h-screen flex flex-col;
+    background: var(--surface);
+  }
+
+  /* White card with warm border */
+  .fmc-card {
+    background: white;
+    border: 1.5px solid var(--fmc-border);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+
+  /* URL input wrapper */
+  .fmc-input-wrap {
+    background: white;
+    border: 1.5px solid var(--fmc-border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: border-color 0.2s;
+  }
+  .fmc-input-wrap:focus-within { border-color: var(--warm); }
+
+  /* Primary button — ink black */
+  .fmc-btn-primary {
+    width: 100%;
+    padding: 14px 20px;
+    border-radius: 16px;
+    background: var(--ink);
+    color: white;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .fmc-btn-primary:active { opacity: 0.8; }
+  .fmc-btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Tag / label chip */
+  .fmc-tag {
+    background: var(--tag-bg);
+    border-radius: 100px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  /* Eyebrow label (all-caps, spaced) */
+  .fmc-eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Section label */
+  .fmc-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 24px 28px 12px;
+  }
+
+  /* Header bar */
+  .fmc-navbar {
+    @apply fixed top-0 left-0 right-0 z-40;
+    background: rgba(253,250,245,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--fmc-border);
+  }
+
+  /* Bottom sheet backdrop */
+  .fmc-backdrop {
+    @apply fixed inset-0 z-40;
+    background: rgba(17,17,17,0.4);
+    animation: fadeIn 0.2s ease;
+  }
+
+  /* Mode card — primary (dark) */
+  .fmc-mode-primary {
+    border-radius: 24px;
+    background: var(--ink);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.18s ease;
+  }
+  .fmc-mode-primary:active { transform: scale(0.97); }
+
+  /* Mode card — secondary (light) */
+  .fmc-mode-secondary {
+    border-radius: 24px;
+    background: white;
+    border: 1.5px solid var(--fmc-border);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.18s ease;
+  }
+  .fmc-mode-secondary:active { transform: scale(0.97); }
 }

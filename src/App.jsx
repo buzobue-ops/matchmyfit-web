@@ -3,14 +3,18 @@ import { loadUser, saveUser, clearUser } from './services/storageService.js'
 import { checkAccountAndFetchProfile } from './services/webhookService.js'
 import LoginPage from './components/Login/LoginPage.jsx'
 import OnboardingFlow from './components/Onboarding/OnboardingFlow.jsx'
+import HomePage from './components/Home/HomePage.jsx'
 import SearchPage from './components/Search/SearchPage.jsx'
+import OutfitPage from './components/Outfit/OutfitPage.jsx'
 import LoadingOverlay from './components/UI/LoadingOverlay.jsx'
 
 // ─── Route states ────────────────────────────────────────────────────────
 // 'loading'    initial check
 // 'login'      unauthenticated
 // 'onboarding' authenticated but profile incomplete
-// 'search'     authenticated + onboarding complete
+// 'home'       authenticated + onboarding complete → mode selection
+// 'search'     Singolo Capo mode
+// 'outfit'     Custom Outfit mode
 
 export default function App() {
   const [route, setRoute] = useState('loading')
@@ -24,10 +28,9 @@ export default function App() {
       setRoute('login')
       return
     }
-    // User was already fully onboarded (onboardingStep === 2 equivalent)
     if (stored.onboardingComplete) {
       setUser(stored)
-      setRoute('search')
+      setRoute('home')
     } else {
       setUser(stored)
       setRoute('onboarding')
@@ -62,7 +65,7 @@ export default function App() {
 
       let finalUser
       if (profileIsComplete(existingProfile)) {
-        // Returning user — send straight to search, no re-onboarding
+        // Returning user — send to home, no re-onboarding
         finalUser = {
           ...existingProfile,
           ...authUser,          // authUser.id (Google sub) always wins
@@ -70,7 +73,7 @@ export default function App() {
         }
         saveUser(finalUser)
         setUser(finalUser)
-        setRoute('search')
+        setRoute('home')
       } else if (existingProfile) {
         // User exists but onboarding was interrupted — resume from where they left off
         finalUser = { ...existingProfile, ...authUser, onboardingComplete: false }
@@ -103,7 +106,7 @@ export default function App() {
     const finalUser = { ...updatedUser, onboardingComplete: true }
     saveUser(finalUser)
     setUser(finalUser)
-    setRoute('search')
+    setRoute('home')
   }, [])
 
   // ─── Sign out ─────────────────────────────────────────────────────────
@@ -141,9 +144,32 @@ export default function App() {
     )
   }
 
+  if (route === 'home') {
+    return (
+      <HomePage
+        user={user}
+        onSelectSearch={() => setRoute('search')}
+        onSelectOutfit={() => setRoute('outfit')}
+        onSignOut={handleSignOut}
+        onUpdateUser={handleUpdateUser}
+      />
+    )
+  }
+
+  if (route === 'outfit') {
+    return (
+      <OutfitPage
+        user={user}
+        onBack={() => setRoute('home')}
+        onSignOut={handleSignOut}
+      />
+    )
+  }
+
   return (
     <SearchPage
       user={user}
+      onBack={() => setRoute('home')}
       onSignOut={handleSignOut}
       onUpdateUser={handleUpdateUser}
     />

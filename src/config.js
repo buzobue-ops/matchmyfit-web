@@ -4,10 +4,11 @@
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 export const API = {
-  checkAccount: `${API_BASE}/api/check-account`,
-  onboarding:   `${API_BASE}/api/onboarding`,
-  resume:       `${API_BASE}/api/resume`,
-  search:       `${API_BASE}/api/search`,
+  checkAccount:  `${API_BASE}/api/check-account`,
+  onboarding:    `${API_BASE}/api/onboarding`,
+  resume:        `${API_BASE}/api/resume`,
+  search:        `${API_BASE}/api/search`,
+  profileUpdate: `${API_BASE}/api/profile-update`,
 }
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────

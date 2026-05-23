@@ -1,21 +1,18 @@
 import { useRef } from 'react'
 
 export default function PhotoStep({ photoBase64, photoUploaded, onPhotoSelected }) {
-  const inputRef = useRef(null)
+  const cameraInputRef = useRef(null)
+  const galleryInputRef = useRef(null)
 
   function handleFileChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
-
     const reader = new FileReader()
     reader.onload = () => {
-      // Strip data URL prefix → raw base64
       const base64 = reader.result.replace(/^data:image\/[^;]+;base64,/, '')
       onPhotoSelected(base64)
     }
     reader.readAsDataURL(file)
-
-    // Reset so the same file can be re-selected
     e.target.value = ''
   }
 
@@ -34,11 +31,20 @@ export default function PhotoStep({ photoBase64, photoUploaded, onPhotoSelected 
       </div>
 
       <h2 className="text-2xl font-bold text-black mb-2 text-center">Foto corpo intero</h2>
-      <p className="text-ios-gray-1 text-base text-center mb-8 max-w-[280px]">
+      <p className="text-ios-gray-1 text-base text-center mb-3 max-w-[280px]">
         Carica una foto a figura intera per aiutarci a trovare il fit perfetto
       </p>
 
-      {/* Photo preview */}
+      {/* Mirror tip */}
+      <div className="flex items-start gap-2 rounded-ios px-4 py-3 mb-5 w-full"
+           style={{ backgroundColor: 'rgba(0,122,255,0.08)' }}>
+        <span className="text-lg leading-tight">💡</span>
+        <p className="text-ios-blue text-sm font-medium leading-snug">
+          È consigliato fare una foto allo specchio a figura intera
+        </p>
+      </div>
+
+      {/* Photo preview or placeholder */}
       <div className="w-full mb-4">
         {hasPhoto ? (
           <div className="relative">
@@ -47,7 +53,6 @@ export default function PhotoStep({ photoBase64, photoUploaded, onPhotoSelected 
               alt="Foto corpo"
               className="w-full max-h-80 object-contain rounded-ios-lg bg-ios-gray-5"
             />
-            {/* Upload badge */}
             {photoUploaded && (
               <div className="absolute top-3 right-3 flex items-center gap-1.5
                               bg-ios-green text-white text-xs font-semibold
@@ -68,8 +73,8 @@ export default function PhotoStep({ photoBase64, photoUploaded, onPhotoSelected 
           </div>
         ) : (
           <button
-            onClick={() => inputRef.current?.click()}
-            className="w-full h-56 rounded-ios-lg border-2 border-dashed border-ios-gray-4
+            onClick={() => galleryInputRef.current?.click()}
+            className="w-full h-48 rounded-ios-lg border-2 border-dashed border-ios-gray-4
                        flex flex-col items-center justify-center gap-3
                        bg-ios-gray-5/50 active:bg-ios-gray-5 transition-colors"
           >
@@ -82,22 +87,51 @@ export default function PhotoStep({ photoBase64, photoUploaded, onPhotoSelected 
         )}
       </div>
 
-      {/* Button */}
-      <button
-        onClick={() => inputRef.current?.click()}
-        className="w-full py-3.5 rounded-ios border border-ios-blue
-                   text-ios-blue font-semibold text-base
-                   active:bg-ios-blue/5 transition-colors"
-      >
-        {hasPhoto ? 'Cambia foto' : 'Scegli foto'}
-      </button>
+      {/* Two action buttons */}
+      <div className="w-full flex gap-3 mb-2">
+        <button
+          onClick={() => cameraInputRef.current?.click()}
+          className="flex-1 py-3.5 rounded-ios border border-ios-blue
+                     text-ios-blue font-semibold text-base flex items-center justify-center gap-2
+                     active:bg-ios-blue/5 transition-colors"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="1" y="4" width="16" height="12" rx="2.5" stroke="#007AFF" strokeWidth="1.5"/>
+            <circle cx="9" cy="10" r="3" stroke="#007AFF" strokeWidth="1.5"/>
+            <path d="M6 4l1.2-2h3.6L12 4" stroke="#007AFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Scatta foto
+        </button>
+        <button
+          onClick={() => galleryInputRef.current?.click()}
+          className="flex-1 py-3.5 rounded-ios border border-ios-blue
+                     text-ios-blue font-semibold text-base flex items-center justify-center gap-2
+                     active:bg-ios-blue/5 transition-colors"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="2" width="14" height="14" rx="2.5" stroke="#007AFF" strokeWidth="1.5"/>
+            <path d="M2 12l4-4 3 3 2-2 5 5" stroke="#007AFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="6.5" cy="6.5" r="1.5" fill="#007AFF"/>
+          </svg>
+          Galleria
+        </button>
+      </div>
 
-      {/* Hidden file input – accept images only, prefer camera on mobile */}
+      {/* Camera input */}
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {/* Gallery input */}
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -109,7 +143,7 @@ export default function PhotoStep({ photoBase64, photoUploaded, onPhotoSelected 
       )}
 
       <p className="text-ios-gray-2 text-xs text-center mt-3 px-6">
-        Consiglio: scatta in piedi, con buona illuminazione, su sfondo neutro.
+        Scatta in piedi, con buona illuminazione, su sfondo neutro.
       </p>
     </div>
   )

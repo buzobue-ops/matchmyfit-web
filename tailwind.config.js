@@ -4,6 +4,17 @@ export default {
   theme: {
     extend: {
       colors: {
+        fmc: {
+          cream:   '#F5F0E8',
+          ink:     '#111111',
+          warm:    '#C8A882',
+          accent:  '#E8D5B7',
+          muted:   '#8C8279',
+          surface: '#FDFAF5',
+          border:  '#E2DAD0',
+          'tag-bg':'#F0EAE0',
+          'app-bg':'#EDEAE4',
+        },
         ios: {
           blue: '#007AFF',
           green: '#34C759',
@@ -25,15 +36,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: [
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'SF Pro Display',
-          'SF Pro Text',
-          'Helvetica Neue',
-          'Arial',
-          'sans-serif',
-        ],
+        sans: ['DM Sans', '-apple-system', 'BlinkMacSystemFont', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        serif: ['Cormorant Garamond', 'Georgia', 'Times New Roman', 'serif'],
       },
       borderRadius: {
         ios: '10px',
