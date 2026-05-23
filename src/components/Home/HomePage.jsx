@@ -2,6 +2,16 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadSearchHistory } from '../../services/storageService.js'
 
+const S = {
+  ink:    '#111111',
+  warm:   '#C8A882',
+  muted:  '#8C8279',
+  surface:'#FDFAF5',
+  cream:  '#F5F0E8',
+  border: '#E2DAD0',
+  tagBg:  '#F0EAE0',
+}
+
 // ─── FitMyCart Logo SVG ────────────────────────────────────────────────────
 function FitMyCartLogo() {
   return (
@@ -187,7 +197,7 @@ function RecentChip({ result }) {
 }
 
 // ─── HomePage ─────────────────────────────────────────────────────────────
-export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelectProfile, onSelectCart, onSignOut, onUpdateUser }) {
+export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelectProfile, onSelectCart, onSelectBrowse, onSignOut, onUpdateUser }) {
   const [showAccount, setShowAccount] = useState(false)
   const history = loadSearchHistory().slice(0, 6)
   const cartCount = (() => { try { return JSON.parse(localStorage.getItem('mmf_cart') || '[]').length } catch { return 0 } })()
@@ -344,6 +354,41 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'white', fontSize: 14,
             }}>→</div>
+          </div>
+        </button>
+
+        {/* CERCA & AGGIUNGI — tertiary */}
+        <button
+          onClick={onSelectBrowse}
+          style={{
+            borderRadius: 24, background: S.tagBg,
+            border: `1.5px solid ${S.border}`,
+            overflow: 'hidden', cursor: 'pointer',
+            textAlign: 'left', width: '100%',
+            transition: 'transform 0.18s ease',
+          }}
+          onMouseDown={e => e.currentTarget.style.transform = 'scale(0.97)'}
+          onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <div style={{ padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: S.muted, marginBottom: 4 }}>
+                Modalità 03
+              </div>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 700, color: S.ink, lineHeight: 1.15 }}>
+                Cerca &amp; Aggiungi
+              </div>
+              <div style={{ fontSize: 12, color: S.muted, marginTop: 6, lineHeight: 1.5 }}>
+                Naviga sul web e salva i link preferiti.
+              </div>
+            </div>
+            <div style={{
+              width: 52, height: 52, borderRadius: 14,
+              background: 'rgba(17,17,17,0.07)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 24, flexShrink: 0,
+            }}>🌐</div>
           </div>
         </button>
 

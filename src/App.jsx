@@ -8,7 +8,26 @@ import SearchPage from './components/Search/SearchPage.jsx'
 import OutfitPage from './components/Outfit/OutfitPage.jsx'
 import ProfilePage from './components/Profile/ProfilePage.jsx'
 import CartPage from './components/Cart/CartPage.jsx'
+import BrowsePage from './components/Browse/BrowsePage.jsx'
 import LoadingOverlay from './components/UI/LoadingOverlay.jsx'
+
+// ─── Read shared URL from PWA share_target query params ───────────────────
+function readSharedUrl() {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    const url = p.get('shared_url') || p.get('url') || ''
+    const text = p.get('shared_text') || p.get('text') || ''
+    // Prefer anything that looks like a URL
+    const candidate = [url, text].find(v => v.startsWith('http'))
+    if (candidate) {
+      // Clean the query string so the shared URL doesn't stick on refresh
+      const clean = window.location.pathname
+      window.history.replaceState({}, '', clean)
+      return candidate
+    }
+  } catch { /* */ }
+  return null
+}
 
 // ─── Route states ────────────────────────────────────────────────────────
 // 'loading'    initial check
@@ -19,11 +38,14 @@ import LoadingOverlay from './components/UI/LoadingOverlay.jsx'
 // 'outfit'     Custom Outfit mode
 // 'profile'    dedicated profile / measurements page
 // 'cart'       shopping cart
+// 'browse'     cerca & aggiungi link dal web
 
 export default function App() {
   const [route, setRoute] = useState('loading')
   const [user, setUser] = useState(null)
   const [loadingMsg, setLoadingMsg] = useState('Caricamento…')
+  // URL received via PWA Share Target
+  const [sharedUrl, setSharedUrl] = useState(() => readSharedUrl())
 
   // ─── On mount: restore session from localStorage ──────────────────────
   useEffect(() => {
@@ -34,12 +56,17 @@ export default function App() {
     }
     if (stored.onboardingComplete) {
       setUser(stored)
-      setRoute('home')
+      // If we received a shared URL via the PWA share_target, go straight to browse
+      if (sharedUrl) {
+        setRoute('browse')
+      } else {
+        setRoute('home')
+      }
     } else {
       setUser(stored)
       setRoute('onboarding')
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Helper: profile is fully onboarded.
   //     n8n check-account may return only username (string) or a full object —
@@ -156,6 +183,7 @@ export default function App() {
         onSelectOutfit={() => setRoute('outfit')}
         onSelectProfile={() => setRoute('profile')}
         onSelectCart={() => setRoute('cart')}
+        onSelectBrowse={() => setRoute('browse')}
         onSignOut={handleSignOut}
         onUpdateUser={handleUpdateUser}
       />
@@ -187,6 +215,17 @@ export default function App() {
     return (
       <CartPage
         onBack={() => setRoute('home')}
+      />
+    )
+  }
+
+  if (route === 'browse') {
+    return (
+      <BrowsePage
+        sharedUrl={sharedUrl}
+        onClearShared={() => setSharedUrl(null)}
+        onBack={() => setRoute('home')}
+        onGoSearch={(url) => { setRoute('search') /* handled via storage */ }}
       />
     )
   }
