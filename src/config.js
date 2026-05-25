@@ -9,6 +9,7 @@ export const API = {
   resume:        `${API_BASE}/api/resume`,
   search:        `${API_BASE}/api/search`,
   profileUpdate: `${API_BASE}/api/profile-update`,
+  outfit:        `${API_BASE}/api/outfit`,
 }
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────

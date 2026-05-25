@@ -9,8 +9,8 @@ const PORT = process.env.PORT || 3001
 const N8N_ONBOARDING_URL    = 'https://buzobue.app.n8n.cloud/webhook/aa94f233-cc9b-416f-8cbf-a7c5fae268c4'
 const N8N_CHECK_ACCOUNT_URL = 'https://buzobue.app.n8n.cloud/webhook/ea2e6b62-1998-4f9a-8c1f-3cd7409319c3'
 const N8N_LINK_PAGE_URL     = 'https://buzobue.app.n8n.cloud/webhook/ed39425a-e716-4273-adf5-a8e7779d19bf'
-// Custom Outfit — imposta il path in n8n poi aggiorna N8N_OUTFIT_URL nell'env Railway
-const N8N_OUTFIT_URL = process.env.N8N_OUTFIT_URL || 'https://buzobue.app.n8n.cloud/webhook/matchmyfit-outfit'
+// Custom Outfit — webhook OUTFIT workflow (ZZM9ZzbGJlX494N1)
+const N8N_OUTFIT_URL = process.env.N8N_OUTFIT_URL || 'https://buzobue.app.n8n.cloud/webhook/0c23a3b1-895b-471a-a4eb-140c49c1b111'
 
 // CORS: accetta richieste dal dominio Aruba e da localhost in sviluppo
 const allowedOrigins = [
@@ -111,8 +111,17 @@ app.post('/api/feedback', async (req, res) => {
 
 // Custom Outfit (3 link → n8n outfit workflow)
 app.post('/api/outfit', async (req, res) => {
-  console.log('[outfit] userId =', req.body.userId, 'links =', req.body.links)
-  await proxyJSON(N8N_OUTFIT_URL, req.body, res, 300000) // 5 min — 3 elaborazioni
+  const { userId, links = {} } = req.body
+  const searchId = `outfit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+  const outfitBody = {
+    userId,
+    searchId,
+    top:    links.top    || null,
+    mid:    links.mid    || null,
+    bottom: links.bottom || null,
+  }
+  console.log('[outfit] userId =', userId, 'searchId =', searchId)
+  await proxyJSON(N8N_OUTFIT_URL, outfitBody, res, 300000) // 5 min — 3 elaborazioni
 })
 
 // SPA fallback – serve index.html for all other routes

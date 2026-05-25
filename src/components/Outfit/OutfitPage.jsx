@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { loadSearchHistory, addToCart, isInCart } from '../../services/storageService.js'
+import { API } from '../../config.js'
 import figureUrl from '../../assets/figure.png'
 
 // ─── Design tokens ────────────────────────────────────────────────────────
@@ -256,7 +257,7 @@ export default function OutfitPage({ user, onBack, onOpenCart }) {
     if (!canAnalyze || isAnalyzing) return
     setIsAnalyzing(true); setError(null); setResult(null)
     try {
-      const res = await fetch('/api/outfit', {
+      const res = await fetch(API.outfit, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -264,8 +265,10 @@ export default function OutfitPage({ user, onBack, onOpenCart }) {
           links: { top: links.top || null, mid: links.mid || null, bottom: links.bottom || null },
         }),
       })
-      const json = await res.json()
-      const data = Array.isArray(json) ? json[0] : json
+      const text = await res.text()
+      let data
+      try { data = JSON.parse(text) } catch { throw new Error('Risposta non valida dal server') }
+      if (Array.isArray(data)) data = data[0]
       if (!res.ok) throw new Error(data?.error || `Errore ${res.status}`)
       setResult(data)
     } catch (err) {
@@ -471,22 +474,52 @@ export default function OutfitPage({ user, onBack, onOpenCart }) {
         {/* ── Result ── */}
         {result && (
           <div style={{
-            background: S.ink, borderRadius: 20, padding: 16,
-            display: 'flex', alignItems: 'center', gap: 14,
+            borderRadius: 20, overflow: 'hidden',
+            border: `1.5px solid ${S.border}`,
             animation: 'slideUp 0.35s cubic-bezier(0.32,0.72,0,1)',
           }}>
-            <span style={{ fontSize: 28 }}>✨</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: S.warm, letterSpacing: 0.5 }}>Risultato outfit</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 4, lineHeight: 1.5 }}>
-                {typeof result.text === 'string'
-                  ? decodeURIComponent(result.text.replace(/\+/g, ' '))
-                  : result.message || result.output || 'Analisi completata.'}
+            {/* Header */}
+            <div style={{
+              background: S.ink, padding: '12px 16px',
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <span style={{ fontSize: 20 }}>✨</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: S.warm, letterSpacing: 0.5 }}>Outfit generato</div>
+                {(result.text || result.message || result.output) && (
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2, lineHeight: 1.5 }}>
+                    {typeof result.text === 'string'
+                      ? decodeURIComponent(result.text.replace(/\+/g, ' '))
+                      : result.message || result.output}
+                  </div>
+                )}
               </div>
             </div>
-            {result.score != null && (
-              <div style={{ fontFamily: serif, fontSize: 30, fontWeight: 900, color: 'white', flexShrink: 0 }}>
-                {result.score}<span style={{ fontSize: 13, color: S.muted }}>/10</span>
+            {/* Outfit image */}
+            {result.imageUrl && (
+              <div style={{ background: S.cream, position: 'relative' }}>
+                <img
+                  src={result.imageUrl}
+                  alt="Outfit generato"
+                  style={{
+                    width: '100%',
+                    maxHeight: 480,
+                    objectFit: 'contain',
+                    display: 'block',
+                  }}
+                />
+                <a
+                  href={result.imageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    position: 'absolute', bottom: 10, right: 10,
+                    background: 'rgba(17,17,17,0.72)',
+                    color: 'white', fontSize: 10, fontWeight: 600,
+                    padding: '5px 10px', borderRadius: 10,
+                    textDecoration: 'none', fontFamily: sans, letterSpacing: 0.3,
+                  }}
+                >↗ Apri</a>
               </div>
             )}
           </div>
