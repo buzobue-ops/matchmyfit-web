@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { loadUser, saveUser, clearUser } from './services/storageService.js'
+import { loadUser, saveUser, clearUser, syncHistoryFromServer } from './services/storageService.js'
 import { checkAccountAndFetchProfile } from './services/webhookService.js'
 import LoginPage from './components/Login/LoginPage.jsx'
 import OnboardingFlow from './components/Onboarding/OnboardingFlow.jsx'
@@ -10,6 +10,10 @@ import ProfilePage from './components/Profile/ProfilePage.jsx'
 import CartPage from './components/Cart/CartPage.jsx'
 import BrowsePage from './components/Browse/BrowsePage.jsx'
 import LoadingOverlay from './components/UI/LoadingOverlay.jsx'
+import { GdprBanner } from './components/Legal/LegalModals.jsx'
+import { hasConsented } from './components/Legal/ConsentStep.jsx'
+
+const GDPR_KEY = 'mmf_gdpr_banner_v1'
 
 // ─── Read shared URL from PWA share_target query params ───────────────────
 function readSharedUrl() {
@@ -44,6 +48,7 @@ export default function App() {
   const [route, setRoute] = useState('loading')
   const [user, setUser] = useState(null)
   const [loadingMsg, setLoadingMsg] = useState('Caricamento…')
+  const [showGdprBanner, setShowGdprBanner] = useState(false)
   // URL received via PWA Share Target
   const [sharedUrl, setSharedUrl] = useState(() => readSharedUrl())
 
@@ -56,6 +61,11 @@ export default function App() {
     }
     if (stored.onboardingComplete) {
       setUser(stored)
+      if (!hasConsented() && !localStorage.getItem(GDPR_KEY)) {
+        setShowGdprBanner(true)
+      }
+      // Sync search history from server (non-blocking)
+      syncHistoryFromServer(stored.id)
       // If we received a shared URL via the PWA share_target, go straight to browse
       if (sharedUrl) {
         setRoute('browse')
@@ -104,6 +114,7 @@ export default function App() {
         }
         saveUser(finalUser)
         setUser(finalUser)
+        syncHistoryFromServer(finalUser.id) // sync history after login
         setRoute('home')
       } else if (existingProfile) {
         // User exists but onboarding was interrupted — resume from where they left off
@@ -156,6 +167,11 @@ export default function App() {
     })
   }, [])
 
+  // ─── GDPR banner (existing users che non hanno fatto onboarding recente) ──
+  const gdprBanner = showGdprBanner ? (
+    <GdprBanner onAccept={() => { localStorage.setItem(GDPR_KEY, '1'); setShowGdprBanner(false) }} />
+  ) : null
+
   // ─── Render ───────────────────────────────────────────────────────────
   if (route === 'loading') {
     return <LoadingOverlay message={loadingMsg} fullscreen />
@@ -177,67 +193,83 @@ export default function App() {
 
   if (route === 'home') {
     return (
-      <HomePage
-        user={user}
-        onSelectSearch={() => setRoute('search')}
-        onSelectOutfit={() => setRoute('outfit')}
-        onSelectProfile={() => setRoute('profile')}
-        onSelectCart={() => setRoute('cart')}
-        onSelectBrowse={() => setRoute('browse')}
-        onSignOut={handleSignOut}
-        onUpdateUser={handleUpdateUser}
-      />
+      <>
+        <HomePage
+          user={user}
+          onSelectSearch={() => setRoute('search')}
+          onSelectOutfit={() => setRoute('outfit')}
+          onSelectProfile={() => setRoute('profile')}
+          onSelectCart={() => setRoute('cart')}
+          onSelectBrowse={() => setRoute('browse')}
+          onSignOut={handleSignOut}
+          onUpdateUser={handleUpdateUser}
+        />
+        {gdprBanner}
+      </>
     )
   }
 
   if (route === 'outfit') {
     return (
-      <OutfitPage
-        user={user}
-        onBack={() => setRoute('home')}
-        onSignOut={handleSignOut}
-        onOpenCart={() => setRoute('cart')}
-      />
+      <>
+        <OutfitPage
+          user={user}
+          onBack={() => setRoute('home')}
+          onSignOut={handleSignOut}
+          onOpenCart={() => setRoute('cart')}
+        />
+        {gdprBanner}
+      </>
     )
   }
 
   if (route === 'profile') {
     return (
-      <ProfilePage
-        user={user}
-        onBack={() => setRoute('home')}
-        onSave={(updates) => { handleUpdateUser(updates); setRoute('home') }}
-      />
+      <>
+        <ProfilePage
+          user={user}
+          onBack={() => setRoute('home')}
+          onSave={(updates) => { handleUpdateUser(updates); setRoute('home') }}
+        />
+        {gdprBanner}
+      </>
     )
   }
 
   if (route === 'cart') {
     return (
-      <CartPage
-        onBack={() => setRoute('home')}
-      />
+      <>
+        <CartPage onBack={() => setRoute('home')} />
+        {gdprBanner}
+      </>
     )
   }
 
   if (route === 'browse') {
     return (
-      <BrowsePage
-        sharedUrl={sharedUrl}
-        onClearShared={() => setSharedUrl(null)}
-        onBack={() => setRoute('home')}
-        onGoSearch={(url) => { setRoute('search') /* handled via storage */ }}
-      />
+      <>
+        <BrowsePage
+          sharedUrl={sharedUrl}
+          onClearShared={() => setSharedUrl(null)}
+          onBack={() => setRoute('home')}
+          onGoSearch={(url) => { setRoute('search') /* handled via storage */ }}
+        />
+        {gdprBanner}
+      </>
     )
   }
 
   return (
-    <SearchPage
-      user={user}
-      onBack={() => setRoute('home')}
-      onSignOut={handleSignOut}
-      onUpdateUser={handleUpdateUser}
-      onOpenProfile={() => setRoute('profile')}
-      onOpenCart={() => setRoute('cart')}
-    />
+    <>
+      <SearchPage
+        user={user}
+        onBack={() => setRoute('home')}
+        onSignOut={handleSignOut}
+        onUpdateUser={handleUpdateUser}
+        onOpenProfile={() => setRoute('profile')}
+        onOpenCart={() => setRoute('cart')}
+      />
+      {gdprBanner}
+    </>
   )
 }

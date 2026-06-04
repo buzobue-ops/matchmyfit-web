@@ -1,5 +1,41 @@
 // Mirrors the role of UserDefaults + DataPersistenceManager in the iOS app.
-// All data lives in localStorage so it survives page reloads.
+// localStorage is used as the local cache; PostgreSQL (via Express) is the
+// source of truth — synced on every save/update and loaded fresh on login.
+
+const API_BASE = import.meta.env.VITE_API_URL || ''
+
+// Fire-and-forget: write a search result to the server DB
+function _serverSave(result) {
+  const userId = _currentUserId()
+  if (!userId || !result.id) return
+  fetch(`${API_BASE}/api/history`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...result, userId }),
+  }).catch(() => { /* offline — local copy is safe */ })
+}
+
+// Fire-and-forget: delete one search from the server DB
+function _serverDelete(id) {
+  fetch(`${API_BASE}/api/history/${id}`, { method: 'DELETE' })
+    .catch(() => { /* ignore */ })
+}
+
+// Fire-and-forget: delete all searches for the current user from server DB
+function _serverDeleteAll() {
+  const userId = _currentUserId()
+  if (!userId) return
+  fetch(`${API_BASE}/api/history?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' })
+    .catch(() => { /* ignore */ })
+}
+
+// Read the current userId from localStorage without importing saveUser
+function _currentUserId() {
+  try {
+    const raw = localStorage.getItem('mmf_user')
+    return raw ? JSON.parse(raw)?.id : null
+  } catch { return null }
+}
 
 const KEYS = {
   user: 'mmf_user',
@@ -7,6 +43,7 @@ const KEYS = {
   photoFolderName: 'mmf_photo_folder_name',
   linkStepResumeUrl: 'mmf_link_step_resume_url',
   searchHistory: 'mmf_search_history',
+  outfitHistory: 'mmf_outfit_history',
   cart: 'mmf_cart',
 }
 
@@ -73,6 +110,7 @@ export function saveSearchResult(result) {
   if (existing >= 0) history[existing] = result
   else history.unshift(result)
   localStorage.setItem(KEYS.searchHistory, JSON.stringify(history))
+  _serverSave(result) // async sync — does not block
 }
 
 export function updateSearchResult(updated) {
@@ -90,6 +128,54 @@ export function loadSearchHistory() {
 
 export function clearSearchHistory() {
   localStorage.removeItem(KEYS.searchHistory)
+  _serverDeleteAll() // async sync
+}
+
+// Called once on login: fetches the user's full history from the server
+// and merges it into localStorage (server wins for completed items).
+export async function syncHistoryFromServer(userId) {
+  if (!userId) return
+  try {
+    const res = await fetch(`${API_BASE}/api/history?userId=${encodeURIComponent(userId)}`)
+    if (!res.ok) return
+    const serverItems = await res.json()
+    if (!Array.isArray(serverItems) || serverItems.length === 0) return
+
+    // Merge: start from server list, then add local-only pending items
+    const localHistory = loadSearchHistory()
+    const serverIds = new Set(serverItems.map(r => r.id))
+    const localOnlyPending = localHistory.filter(r => !serverIds.has(r.id) && r.status === 'pending')
+    const merged = [...serverItems, ...localOnlyPending]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+    localStorage.setItem(KEYS.searchHistory, JSON.stringify(merged))
+  } catch { /* server unreachable — use local cache */ }
+}
+
+// ─── Outfit history ───────────────────────────────────────────────────────
+// Each entry: { id, createdAt, imageUrl, links, prices, totalPrice, sizeAdvice }
+
+export function saveOutfitToHistory(entry) {
+  const history = loadOutfitHistory()
+  const existing = history.findIndex(r => r.id === entry.id)
+  if (existing >= 0) history[existing] = entry
+  else history.unshift(entry)
+  // Keep max 20 outfits
+  localStorage.setItem(KEYS.outfitHistory, JSON.stringify(history.slice(0, 20)))
+}
+
+export function loadOutfitHistory() {
+  try {
+    const raw = localStorage.getItem(KEYS.outfitHistory)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+export function deleteOutfitFromHistory(id) {
+  const history = loadOutfitHistory().filter(r => r.id !== id)
+  localStorage.setItem(KEYS.outfitHistory, JSON.stringify(history))
 }
 
 // ─── Cart ─────────────────────────────────────────────────────────────────

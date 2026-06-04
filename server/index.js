@@ -1,6 +1,36 @@
 const express = require('express')
 const cors = require('cors')
 const path = require('path')
+const { Pool } = require('pg')
+
+// ─── PostgreSQL ─────────────────────────────────────────────────────────────
+// Set DATABASE_URL in Railway environment variables.
+// If not set, history API returns empty (graceful degradation).
+let db = null
+if (process.env.DATABASE_URL) {
+  db = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 5,
+  })
+  db.query(`
+    CREATE TABLE IF NOT EXISTS searches (
+      id               TEXT PRIMARY KEY,
+      user_id          TEXT NOT NULL,
+      product_link     TEXT,
+      product_name     TEXT,
+      response_text    TEXT,
+      image_url        TEXT,
+      price            NUMERIC,
+      recommended_size TEXT,
+      status           TEXT DEFAULT 'pending',
+      created_at       TIMESTAMPTZ DEFAULT NOW(),
+      updated_at       TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS searches_user_id_idx ON searches (user_id);
+  `).then(() => console.log('[db] PostgreSQL connected & tables ready'))
+    .catch(err => console.error('[db] init error:', err.message))
+}
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -122,6 +152,96 @@ app.post('/api/outfit', async (req, res) => {
   }
   console.log('[outfit] userId =', userId, 'searchId =', searchId)
   await proxyJSON(N8N_OUTFIT_URL, outfitBody, res, 300000) // 5 min — 3 elaborazioni
+})
+
+// ─── Search history API ────────────────────────────────────────────────────
+
+// GET /api/history?userId=xxx  → array of search results for that user
+app.get('/api/history', async (req, res) => {
+  const { userId } = req.query
+  if (!userId || !db) return res.json([])
+  try {
+    const { rows } = await db.query(
+      `SELECT id, user_id, product_link, product_name, response_text,
+              image_url, price, recommended_size, status, created_at
+       FROM searches WHERE user_id = $1
+       ORDER BY created_at DESC LIMIT 200`,
+      [userId]
+    )
+    res.json(rows.map(r => ({
+      id:               r.id,
+      userId:           r.user_id,
+      productLink:      r.product_link,
+      productName:      r.product_name,
+      responseText:     r.response_text,
+      responseImageUrl: r.image_url,
+      productPrice:     r.price != null ? Number(r.price) : null,
+      recommendedSize:  r.recommended_size,
+      status:           r.status,
+      createdAt:        r.created_at,
+    })))
+  } catch (err) {
+    console.error('[history] GET error:', err.message)
+    res.json([])
+  }
+})
+
+// POST /api/history  → upsert a search result
+app.post('/api/history', async (req, res) => {
+  if (!db) return res.json({ ok: true })
+  const r = req.body
+  if (!r.id || !r.userId) return res.status(400).json({ error: 'Missing id or userId' })
+  // Don't persist 'pending' to keep DB clean; only save completed/failed
+  if (r.status === 'pending') return res.json({ ok: true })
+  try {
+    await db.query(`
+      INSERT INTO searches
+        (id, user_id, product_link, product_name, response_text,
+         image_url, price, recommended_size, status, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        product_name     = EXCLUDED.product_name,
+        response_text    = EXCLUDED.response_text,
+        image_url        = EXCLUDED.image_url,
+        price            = EXCLUDED.price,
+        recommended_size = EXCLUDED.recommended_size,
+        status           = EXCLUDED.status,
+        updated_at       = NOW()
+    `, [
+      r.id, r.userId, r.productLink, r.productName,
+      r.responseText, r.responseImageUrl,
+      r.productPrice ?? null, r.recommendedSize ?? null,
+      r.status ?? 'completed',
+    ])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[history] POST error:', err.message)
+    res.json({ ok: false })
+  }
+})
+
+// DELETE /api/history/:id  → delete a single search
+app.delete('/api/history/:id', async (req, res) => {
+  if (!db) return res.json({ ok: true })
+  try {
+    await db.query('DELETE FROM searches WHERE id = $1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[history] DELETE error:', err.message)
+    res.json({ ok: false })
+  }
+})
+
+// DELETE /api/history?userId=xxx  → clear all searches for a user
+app.delete('/api/history', async (req, res) => {
+  if (!db || !req.query.userId) return res.json({ ok: true })
+  try {
+    await db.query('DELETE FROM searches WHERE user_id = $1', [req.query.userId])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[history] DELETE all error:', err.message)
+    res.json({ ok: false })
+  }
 })
 
 // SPA fallback – serve index.html for all other routes
