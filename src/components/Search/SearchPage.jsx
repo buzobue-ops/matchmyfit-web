@@ -399,7 +399,8 @@ function CartBtn({ result, onAdded }) {
       id: result.id,
       name: result.productName || result.productLink,
       link: result.productLink,
-      price: null,
+      price: result.productPrice ?? null,
+      recommendedSize: result.recommendedSize ?? null,
       source: 'search',
     })
     if (added) {
