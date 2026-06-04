@@ -89,8 +89,14 @@ export async function checkAccountAndFetchProfile({ authProvider, providerUserId
   const data = Array.isArray(json) ? json[0] : json
   if (!data) return null
 
-  const exists =
-    typeof data.exists === 'boolean' ? data.exists : String(data.exists).toLowerCase() === 'true'
+  // exists può essere bool, stringa "true"/"false", o assente (se l'utente esiste restituisce dati)
+  let exists = false
+  if (data.exists !== undefined) {
+    exists = typeof data.exists === 'boolean' ? data.exists : String(data.exists).toLowerCase() === 'true'
+  } else if (data.username || data.user) {
+    // Il webhook ha restituito dati senza campo exists → l'utente esiste
+    exists = true
+  }
   if (!exists) return null
 
   // step can be int, string int, or "link"
@@ -282,7 +288,11 @@ export async function sendLinkStep(link, userId, searchId, { onUpdate } = {}) {
       if (s2 >= 400) break // real error, stop retrying
 
       const d2 = Array.isArray(json2) ? json2[0] : json2
-      if (d2 && !d2.code && !d2.error) {
+      // Only accept step2Data if it contains actual result content (image/price).
+      // Ignore n8n's "onReceived" acknowledgment {"message":"Workflow was started"}.
+      const hasImage = d2 && (d2.imageUrl || d2.image_url || d2.imageBase64 || d2.image)
+      const hasPrice = d2 && d2.price != null
+      if (d2 && !d2.code && !d2.error && (hasImage || hasPrice)) {
         step2Data = d2
       }
       break
@@ -323,6 +333,29 @@ function decodeBase64Image(raw) {
   return raw.replace(/^data:image\/[^;]+;base64,/, '')
 }
 
+function extractSizeFromText(text) {
+  if (!text) return null
+  const sizes = /\b(XS|S|M|L|XL|XXL|XXXL|\d{2}(?:\/\d{2})?)\b/g
+
+  // 1. "Taglia M" / "Taglia 44" — Italian explicit
+  const m1 = text.match(/taglia\s+([A-Z]{1,3}|\d{2}(?:\/\d{2})?)/i)
+  if (m1) return 'Taglia ' + m1[1].toUpperCase()
+
+  // 2. "recommend … M" / "suggest … L" / "your size is M" — near recommendation keyword
+  const mRec = text.match(/(?:recommend(?:ed)?|suggest(?:ed)?|perfect fit|ideal|your size[^.]{0,20}is)[^.]{0,40}?\b(XS|S|M|L|XL|XXL|XXXL)\b/i)
+  if (mRec) return mRec[1]
+
+  // 3. "size: M" / "size M" at start of a word/sentence
+  const mSize = text.match(/\bsize[:\s]+\b(XS|S|M|L|XL|XXL|XXXL)\b/i)
+  if (mSize) return mSize[1]
+
+  // 4. Fallback — last occurrence is usually the conclusion (more reliable than first)
+  const all = [...text.matchAll(sizes)]
+  if (all.length > 0) return all[all.length - 1][1]
+
+  return null
+}
+
 export function applyResponseToResult(searchId, json, onUpdate, status = 'completed') {
   if (!json) return
 
@@ -358,16 +391,26 @@ export function applyResponseToResult(searchId, json, onUpdate, status = 'comple
     data.productName ?? data.product_name ?? data.nome ?? data.name ?? null
   )
 
+  // Price: try common field names
+  const rawPrice = data.price ?? data.prezzo ?? data.productPrice ?? data.product_price ?? null
+  const productPrice = rawPrice != null ? parseFloat(rawPrice) || null : null
+
+  // Recommended size: try common field names, then extract from text
+  const rawSize = data.recommendedSize ?? data.taglia ?? data.size ?? data.taglia_consigliata ?? null
+  const recommendedSize = rawSize ? String(rawSize) : extractSizeFromText(text)
+
   const history = loadSearchHistory()
   const existing = history.find(r => r.id === searchId)
   if (!existing) return
 
   const updated = {
     ...existing,
-    ...(text        ? { responseText: text }               : {}),
-    ...(imageBase64 ? { responseImageBase64: imageBase64 } : {}),
-    ...(imageUrl    ? { responseImageUrl: imageUrl }       : {}),
-    ...(productName ? { productName }                      : {}),
+    ...(text             ? { responseText: text }               : {}),
+    ...(imageBase64      ? { responseImageBase64: imageBase64 } : {}),
+    ...(imageUrl         ? { responseImageUrl: imageUrl }       : {}),
+    ...(productName      ? { productName }                      : {}),
+    ...(productPrice     ? { productPrice }                     : {}),
+    ...(recommendedSize  ? { recommendedSize }                  : {}),
     status,
   }
 
