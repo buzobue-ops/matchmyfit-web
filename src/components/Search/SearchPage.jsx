@@ -28,6 +28,30 @@ const S = {
 const serif  = "'Cormorant Garamond', serif"
 const sans   = "'DM Sans', sans-serif"
 
+// ─── Size-advice helpers (mirrors OutfitPage) ─────────────────────────────
+function formatPrice(p) {
+  if (p == null || isNaN(Number(p))) return null
+  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(Number(p))
+}
+
+function extractSizeBadge(text) {
+  if (!text) return null
+  const tagged = text.match(/[Tt]aglia\s+(XXS|XS|S|M|L|XL|XXL|XXXL|3XL|4XL|\d{2}(?:\/\d{2})?)\b/i)
+  if (tagged) return tagged[1].toUpperCase()
+  const m = text.match(/\b(XXS|XS|S|M|L|XL|XXL|XXXL|3XL|4XL|\d{2}(?:\/\d{2})?)\b(?!\s*%)/)
+  return m ? m[1].toUpperCase() : null
+}
+
+// Returns { advice, badge } when responseText contains "CAPO: ..."
+function parseSingleAdvice(text) {
+  if (!text) return null
+  const m = text.match(/CAPO\s*:\s*([\s\S]+?)$/i)
+  if (!m) return null
+  const advice = m[1].trim()
+  const badge = extractSizeBadge(advice)
+  return { advice, badge }
+}
+
 export default function SearchPage({ user, onBack, onSignOut, onUpdateUser, onOpenProfile, onOpenCart }) {
   const [link, setLink] = useState('')
   const [isSearching, setIsSearching] = useState(false)
@@ -560,13 +584,54 @@ function ResultCard({ result, user, isActive, expanded, onToggle, onOpenLightbox
           {isPending && !isActive && <p style={{ fontSize: 12, color: S.muted, textAlign: 'center', padding: '8px 0' }}>In attesa di risultati…</p>}
           {result.status === 'failed' && <p style={{ fontSize: 12, color: S.red, textAlign: 'center', padding: '8px 0' }}>Analisi non riuscita.</p>}
 
-          {result.responseText && (
-            <div style={{ background: S.cream, borderRadius: 14, padding: 14, marginBottom: 12 }}>
-              <p style={{ fontSize: 13, color: S.muted, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
-                {result.responseText}
-              </p>
-            </div>
-          )}
+          {result.responseText && (() => {
+            const parsed = parseSingleAdvice(result.responseText)
+            if (parsed) {
+              return (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: S.muted, marginBottom: 6 }}>
+                    Taglia consigliata
+                  </div>
+                  {/* Advice pill — mirrors OutfitPage SizeAdvicePill */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', background: 'rgba(200,168,130,0.08)', borderRadius: 12, borderLeft: `3px solid ${S.warm}`, marginBottom: result.productPrice ? 8 : 0 }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>👔</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: S.warm }}>
+                          Singolo Capo
+                        </div>
+                        {parsed.badge && (
+                          <span style={{ fontSize: 11, fontWeight: 800, color: 'white', background: S.warm, padding: '1px 8px', borderRadius: 8, letterSpacing: 0.5, flexShrink: 0 }}>
+                            📏 {parsed.badge}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: S.ink, lineHeight: 1.5 }}>{parsed.advice}</div>
+                    </div>
+                  </div>
+                  {/* Price */}
+                  {result.productPrice && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: S.tagBg, borderRadius: 10 }}>
+                      <span style={{ fontSize: 12, color: S.muted }}>Prezzo</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: S.warm }}>{formatPrice(result.productPrice)}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            }
+            // Fallback: plain text
+            return (
+              <div style={{ background: S.cream, borderRadius: 14, padding: 14, marginBottom: 12 }}>
+                <p style={{ fontSize: 13, color: S.muted, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{result.responseText}</p>
+                {result.productPrice && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTop: `1px solid ${S.border}` }}>
+                    <span style={{ fontSize: 12, color: S.muted }}>Prezzo</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: S.warm }}>{formatPrice(result.productPrice)}</span>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {result.responseImageBase64 && (
             <ResultImage src={`data:image/jpeg;base64,${result.responseImageBase64}`} onOpen={onOpenLightbox} />

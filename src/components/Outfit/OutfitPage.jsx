@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import { loadSearchHistory, addToCart, isInCart } from '../../services/storageService.js'
+import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+import { loadSearchHistory, addToCart, isInCart, saveOutfitToHistory, loadOutfitHistory, deleteOutfitFromHistory } from '../../services/storageService.js'
 import { API } from '../../config.js'
 import figureUrl from '../../assets/figure.png'
+import { AiAdviceDisclaimer } from '../Legal/LegalModals.jsx'
 
 // ─── Design tokens ────────────────────────────────────────────────────────
 const S = {
@@ -16,6 +18,75 @@ const S = {
 }
 const serif = "'Cormorant Garamond', serif"
 const sans  = "'DM Sans', sans-serif"
+
+// ─── Helpers ─────────────────────────────────────────────────────────────
+
+function formatPrice(p) {
+  if (p == null || isNaN(p)) return null
+  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(p)
+}
+
+// Loading indicator shown while the Outfit analysis runs
+function OutfitWaitingIndicator() {
+  const [phase, setPhase] = useState(0)
+  useEffect(() => {
+    const t = setTimeout(() => setPhase(1), 50000)
+    return () => clearTimeout(t)
+  }, [])
+  const msgs = [
+    'Sto analizzando i capi e le tue misure…',
+    'Sto preparando la foto try-on…',
+  ]
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '16px 0 4px' }}>
+      <div style={{ display: 'flex', gap: 5 }}>
+        {[0,1,2].map(i => (
+          <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: S.warm, animation: `pulseSoft 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+        ))}
+      </div>
+      <p style={{ fontSize: 12, color: S.muted, textAlign: 'center', maxWidth: 240, lineHeight: 1.5 }}>{msgs[phase]}</p>
+    </div>
+  )
+}
+
+function driveImgSrc(url) {
+  if (!url) return null
+  const m = url.match(/[?&]id=([^&]+)/)
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w800`
+  return url
+}
+
+function extractSizeBadge(text) {
+  if (!text) return null
+  // Primary: match "Taglia [size]" — avoids false positives in brand names (e.g. "M" in H&M)
+  const tagged = text.match(/[Tt]aglia\s+(XXS|XS|S|M|L|XL|XXL|XXXL|3XL|4XL|\d{2}(?:\/\d{2})?)\b/i)
+  if (tagged) return tagged[1].toUpperCase()
+  // Fallback: first standalone size token (for old format compatibility)
+  const m = text.match(/\b(XXS|XS|S|M|L|XL|XXL|XXXL|3XL|4XL|\d{2}(?:\/\d{2})?)\b(?!\s*%)/)
+  return m ? m[1].toUpperCase() : null
+}
+
+// Handles both "TOP: [...] | MID: [...] | BOTTOM: [...] | OVERALL: [...]"
+// and newline-separated variants
+function parseSizeAdvice(text) {
+  if (!text) return {}
+  const normalized = text.replace(/\n(TOP|MID|BOTTOM|OVERALL)\s*:/gi, ' | $1:')
+  const parts = {}
+  const topM     = normalized.match(/TOP\s*:\s*([\s\S]+?)(?=\s*\|\s*(?:MID|BOTTOM|OVERALL)\s*:|$)/i)
+  const midM     = normalized.match(/MID\s*:\s*([\s\S]+?)(?=\s*\|\s*(?:BOTTOM|OVERALL)\s*:|$)/i)
+  const botM     = normalized.match(/BOTTOM\s*:\s*([\s\S]+?)(?=\s*\|\s*OVERALL\s*:|$)/i)
+  const ovrM     = normalized.match(/OVERALL\s*:\s*([\s\S]+?)$/i)
+  if (topM) parts.top     = topM[1].trim()
+  if (midM) parts.mid     = midM[1].trim()
+  if (botM) parts.bottom  = botM[1].trim()
+  if (ovrM) parts.overall = ovrM[1].trim()
+  parts.badges = {
+    top:    extractSizeBadge(parts.top),
+    mid:    extractSizeBadge(parts.mid),
+    bottom: extractSizeBadge(parts.bottom),
+  }
+  return parts
+}
 
 // ─── Slot config ──────────────────────────────────────────────────────────
 // hotspotTop: pixel offset from top of the 240px figure panel where the hotspot dot appears
@@ -213,6 +284,357 @@ function HistoryChip({ result, onSelect }) {
   )
 }
 
+// ─── Size advice pill per slot ────────────────────────────────────────────
+function SizeAdvicePill({ slotId, advice, badge }) {
+  const slot = SLOTS.find(s => s.id === slotId)
+  if (!advice) return null
+  return (
+    <div style={{
+      display: 'flex', gap: 8, alignItems: 'flex-start',
+      padding: '10px 12px',
+      background: 'rgba(200,168,130,0.08)',
+      borderRadius: 12,
+      borderLeft: `3px solid ${S.warm}`,
+    }}>
+      <span style={{ fontSize: 14, flexShrink: 0 }}>{slot?.emoji}</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: S.warm }}>
+            {slot?.label} — {slot?.sublabel}
+          </div>
+          {badge && (
+            <span style={{
+              fontSize: 11, fontWeight: 800, color: 'white',
+              background: S.warm, padding: '1px 8px', borderRadius: 8,
+              letterSpacing: 0.5, flexShrink: 0,
+            }}>📏 {badge}</span>
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: S.ink, lineHeight: 1.5 }}>{advice}</div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Add all to cart ──────────────────────────────────────────────────────
+function AddOutfitToCartBtn({ links, prices, sizeAdvice, onAdded }) {
+  const [added, setAdded] = useState(false)
+  function handleAdd() {
+    if (added) return
+    SLOTS.forEach(slot => {
+      const link = links[slot.id]
+      if (!link) return
+      const id = crypto.randomUUID()
+      let hostname = link
+      try { hostname = new URL(link).hostname.replace('www.', '') } catch { /* */ }
+      addToCart({ id, name: `${slot.sublabel} — ${hostname}`, link, price: prices?.[slot.id] ?? null, recommendedSize: sizeAdvice?.[slot.id] ?? null, source: 'outfit' })
+    })
+    setAdded(true); onAdded?.()
+  }
+  return (
+    <button onClick={handleAdd} style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+      width: '100%', padding: '13px 20px', borderRadius: 14,
+      background: added ? S.cream : S.ink,
+      border: `1.5px solid ${added ? S.warm : S.ink}`,
+      color: added ? S.warm : 'white',
+      fontFamily: sans, fontSize: 14, fontWeight: 600,
+      cursor: added ? 'default' : 'pointer', transition: 'all 0.25s',
+    }}>
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 2h1.5l2.5 8h7l1.5-5H5"/><circle cx="7" cy="13" r="1"/><circle cx="12" cy="13" r="1"/>
+      </svg>
+      {added ? '✓ Outfit aggiunto al carrello' : 'Aggiungi outfit al carrello'}
+    </button>
+  )
+}
+
+// ─── Fullscreen image lightbox ────────────────────────────────────────────
+function ImageLightbox({ src, href, onClose }) {
+  // Close on Escape key
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.92)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+        animation: 'fadeIn 0.18s ease',
+      }}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        style={{
+          position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', right: 16,
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.15)', border: 'none',
+          color: 'white', fontSize: 18, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: sans,
+        }}
+      >✕</button>
+
+      {/* Image — stop propagation so clicking the image itself doesn't close */}
+      <img
+        src={src}
+        alt="Outfit"
+        onClick={e => e.stopPropagation()}
+        style={{
+          maxWidth: '100%',
+          maxHeight: 'calc(100vh - 96px)',
+          objectFit: 'contain',
+          borderRadius: 16,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+        }}
+      />
+
+      {/* Open full link */}
+      {href && (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            bottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+            left: '50%', transform: 'translateX(-50%)',
+            background: 'rgba(255,255,255,0.15)',
+            color: 'white', fontSize: 12, fontWeight: 600,
+            padding: '8px 18px', borderRadius: 20,
+            textDecoration: 'none', fontFamily: sans,
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}
+        >↗ Apri originale</a>
+      )}
+    </div>,
+    document.body
+  )
+}
+
+// ─── Outfit history card ──────────────────────────────────────────────────
+function OutfitHistoryCard({ entry, onLoad, onDelete, onCartAdded }) {
+  const [confirmDel, setConfirmDel] = useState(false)
+  const [lightbox, setLightbox]     = useState(false)
+  const [expanded, setExpanded]     = useState(false)
+  const closeLightbox = useCallback(() => setLightbox(false), [])
+
+  const sa         = entry.sizeAdvice || {}
+  const prices     = entry.prices     || {}
+  const totalPrice = entry.totalPrice  ?? null
+  const hasPrices  = Object.values(prices).some(p => p != null && !isNaN(Number(p)))
+  const hasDetail  = !!(sa.top || sa.mid || sa.bottom || sa.overall || hasPrices)
+
+  const date = entry.createdAt
+    ? new Date(entry.createdAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: '2-digit' })
+    : '—'
+
+  return (
+    <>
+      {lightbox && entry.imageUrl && (
+        <ImageLightbox
+          src={driveImgSrc(entry.imageUrl)}
+          href={entry.imageUrl}
+          onClose={closeLightbox}
+        />
+      )}
+    <div style={{
+      background: 'white', border: `1.5px solid ${expanded ? S.warm : S.border}`,
+      borderRadius: 18, overflow: 'hidden', marginBottom: 12,
+      transition: 'border-color 0.2s',
+    }}>
+      <div style={{ display: 'flex', gap: 0 }}>
+        {/* Thumbnail — tappable to open lightbox */}
+        <div
+          onClick={() => entry.imageUrl && setLightbox(true)}
+          style={{
+            width: 90, flexShrink: 0, background: S.cream,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            minHeight: 90,
+            cursor: entry.imageUrl ? 'zoom-in' : 'default',
+            position: 'relative',
+          }}
+        >
+          {entry.imageUrl ? (
+            <>
+              <img
+                src={driveImgSrc(entry.imageUrl)}
+                alt="Outfit"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(0,0,0,0)',
+                transition: 'background 0.2s',
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.25)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0)'}
+              >
+                <span style={{
+                  fontSize: 16, opacity: 0.85,
+                  background: 'rgba(0,0,0,0.45)', borderRadius: '50%',
+                  width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>🔍</span>
+              </div>
+            </>
+          ) : (
+            <span style={{ fontSize: 28 }}>🪡</span>
+          )}
+        </div>
+
+        {/* Info */}
+        <div style={{ flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 10, color: S.muted, marginBottom: 4 }}>{date}</div>
+            {SLOTS.map(slot => {
+              const link = entry.links?.[slot.id]
+              if (!link) return null
+              let hostname = link
+              try { hostname = new URL(link).hostname.replace('www.', '') } catch { /* */ }
+              return (
+                <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                  <span style={{ fontSize: 11 }}>{slot.emoji}</span>
+                  <span style={{ fontSize: 11, color: S.ink, fontWeight: 500 }}>{hostname}</span>
+                  {sa.badges?.[slot.id] && (
+                    <span style={{ fontSize: 9, fontWeight: 700, background: S.warm, color: 'white', padding: '1px 6px', borderRadius: 6 }}>
+                      {sa.badges[slot.id]}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <button
+              onClick={() => onLoad(entry)}
+              style={{
+                flex: 1, padding: '7px 0', borderRadius: 10,
+                background: S.ink, color: 'white',
+                border: 'none', fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}
+            >↩ Ricarica</button>
+            {hasDetail && (
+              <button
+                onClick={() => setExpanded(v => !v)}
+                style={{
+                  padding: '7px 10px', borderRadius: 10,
+                  background: expanded ? S.warm : S.cream,
+                  color: expanded ? 'white' : S.muted,
+                  border: `1px solid ${expanded ? S.warm : S.border}`,
+                  fontFamily: sans, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  whiteSpace: 'nowrap', transition: 'all 0.18s',
+                }}
+              >{expanded ? '▲' : '📏 ▼'}</button>
+            )}
+            {confirmDel ? (
+              <button
+                onClick={() => onDelete(entry.id)}
+                style={{
+                  padding: '7px 10px', borderRadius: 10,
+                  background: '#FFF0F0', color: S.red,
+                  border: `1px solid #E8B4B4`, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}
+              >Conferma</button>
+            ) : (
+              <button
+                onClick={() => setConfirmDel(true)}
+                style={{
+                  padding: '7px 10px', borderRadius: 10,
+                  background: S.cream, color: S.muted,
+                  border: `1px solid ${S.border}`, fontFamily: sans, fontSize: 12, cursor: 'pointer',
+                }}
+              >🗑</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Expanded detail ── */}
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${S.border}`, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+          {/* Taglie per slot */}
+          {(sa.top || sa.mid || sa.bottom) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: S.muted }}>
+                Taglie consigliate
+              </div>
+              {['top', 'mid', 'bottom'].map(slotId =>
+                sa[slotId] ? (
+                  <SizeAdvicePill key={slotId} slotId={slotId} advice={sa[slotId]} badge={sa.badges?.[slotId]} />
+                ) : null
+              )}
+            </div>
+          )}
+
+          {/* Commento globale */}
+          {sa.overall && (
+            <div style={{
+              padding: '10px 12px',
+              background: `linear-gradient(135deg, rgba(200,168,130,0.15), rgba(200,168,130,0.05))`,
+              border: `1px solid rgba(200,168,130,0.35)`,
+              borderRadius: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: 12 }}>🪡</span>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: S.warm }}>
+                  Commento globale outfit
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: S.ink, lineHeight: 1.5, margin: 0 }}>{sa.overall}</p>
+            </div>
+          )}
+
+          {/* Prezzi */}
+          {hasPrices && (
+            <div style={{ padding: '8px 12px', background: S.tagBg, borderRadius: 10 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: S.muted, marginBottom: 6 }}>
+                Prezzi
+              </div>
+              {SLOTS.map(slot => {
+                const p = prices[slot.id]
+                if (p == null || isNaN(Number(p))) return null
+                return (
+                  <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <span style={{ fontSize: 11, color: S.muted }}>{slot.emoji} {slot.sublabel}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: S.ink }}>{formatPrice(Number(p))}</span>
+                  </div>
+                )
+              })}
+              {totalPrice != null && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 5, borderTop: `1px solid ${S.border}`, marginTop: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: S.ink }}>Totale</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: S.warm }}>{formatPrice(Number(totalPrice))}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Aggiungi al carrello */}
+          <AddOutfitToCartBtn
+            links={entry.links || {}}
+            prices={prices}
+            sizeAdvice={sa.badges}
+            onAdded={onCartAdded}
+          />
+        </div>
+      )}
+    </div>
+    </>
+  )
+}
+
 // ─── OutfitPage ───────────────────────────────────────────────────────────
 export default function OutfitPage({ user, onBack, onOpenCart }) {
   const [links, setLinks]           = useState({ top: '', mid: '', bottom: '' })
@@ -221,6 +643,7 @@ export default function OutfitPage({ user, onBack, onOpenCart }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [result, setResult]         = useState(null)
   const [error, setError]           = useState(null)
+  const [outfitHistory, setOutfitHistory] = useState(() => loadOutfitHistory())
   const [cartCount, setCartCount]   = useState(() => {
     try { return JSON.parse(localStorage.getItem('mmf_cart') || '[]').length } catch { return 0 }
   })
@@ -263,6 +686,12 @@ export default function OutfitPage({ user, onBack, onOpenCart }) {
         body: JSON.stringify({
           userId: user?.id,
           links: { top: links.top || null, mid: links.mid || null, bottom: links.bottom || null },
+          // Explicit garment type labels so the AI knows exactly what each slot is
+          garmentTypes: {
+            top:    'Top / Maglia / Camicia (strato base, indossato a contatto con il corpo)',
+            mid:    'Giacca / Maglione / Cardigan (strato esterno, sopra il top)',
+            bottom: 'Pantaloni / Gonna / Shorts (parte inferiore)',
+          },
         }),
       })
       const text = await res.text()
@@ -270,13 +699,33 @@ export default function OutfitPage({ user, onBack, onOpenCart }) {
       try { data = JSON.parse(text) } catch { throw new Error('Risposta non valida dal server') }
       if (Array.isArray(data)) data = data[0]
       if (!res.ok) throw new Error(data?.error || `Errore ${res.status}`)
+
       setResult(data)
+
+      // Save to outfit history
+      const historyEntry = {
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        imageUrl: data.imageUrl || data.image_url || null,
+        links: { top: links.top || null, mid: links.mid || null, bottom: links.bottom || null },
+        sizeAdvice: parseSizeAdvice(data.sizeAdvice ?? data.text ?? null),
+        prices: data.prices ?? {},
+        totalPrice: data.totalPrice ?? null,
+      }
+      saveOutfitToHistory(historyEntry)
+      setOutfitHistory(loadOutfitHistory())
     } catch (err) {
       setError(err.message || 'Analisi non riuscita. Riprova.')
     } finally { setIsAnalyzing(false) }
   }
 
   const activeSlotCfg = SLOTS.find(s => s.id === activeSlot)
+
+  // Derived from result
+  const sizeAdvice = result ? parseSizeAdvice(result.sizeAdvice ?? result.text ?? null) : {}
+  const prices     = result?.prices ?? {}
+  const totalPrice = result?.totalPrice ?? null
+  const hasPrices  = Object.values(prices).some(p => p != null && !isNaN(Number(p)))
 
   return (
     <div style={{ minHeight: '100vh', background: S.surface, fontFamily: sans }}>
@@ -458,6 +907,8 @@ export default function OutfitPage({ user, onBack, onOpenCart }) {
           ) : `🪡 Analizza outfit (${filledCount}/3 capi)`}
         </button>
 
+        {isAnalyzing && <OutfitWaitingIndicator />}
+
         <p style={{ fontSize: 11, color: S.muted, textAlign: 'center', marginTop: -6 }}>
           {canAnalyze
             ? 'Puoi aggiungere un terzo capo per un risultato più preciso'
@@ -479,49 +930,151 @@ export default function OutfitPage({ user, onBack, onOpenCart }) {
             animation: 'slideUp 0.35s cubic-bezier(0.32,0.72,0,1)',
           }}>
             {/* Header */}
-            <div style={{
-              background: S.ink, padding: '12px 16px',
-              display: 'flex', alignItems: 'center', gap: 10,
-            }}>
+            <div style={{ background: S.ink, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 20 }}>✨</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: S.warm, letterSpacing: 0.5 }}>Outfit generato</div>
-                {(result.text || result.message || result.output) && (
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2, lineHeight: 1.5 }}>
-                    {typeof result.text === 'string'
-                      ? decodeURIComponent(result.text.replace(/\+/g, ' '))
-                      : result.message || result.output}
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 1 }}>Analisi taglie e vestibilità</div>
+              </div>
+            </div>
+
+            {/* Outfit image */}
+            {(result.imageUrl || result.image_url) && (() => {
+              const imgSrc = driveImgSrc(result.imageUrl || result.image_url)
+              const imgHref = result.imageUrl || result.image_url
+              return (
+                <div style={{ background: S.cream, position: 'relative' }}>
+                  <img
+                    src={imgSrc}
+                    alt="Outfit generato"
+                    style={{ width: '100%', maxHeight: 480, objectFit: 'contain', display: 'block' }}
+                  />
+                  <a
+                    href={imgHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      position: 'absolute', bottom: 10, right: 10,
+                      background: 'rgba(17,17,17,0.72)',
+                      color: 'white', fontSize: 10, fontWeight: 600,
+                      padding: '5px 10px', borderRadius: 10,
+                      textDecoration: 'none', fontFamily: sans, letterSpacing: 0.3,
+                    }}
+                  >↗ Apri</a>
+                </div>
+              )
+            })()}
+
+            {/* Size advice per slot */}
+            {(sizeAdvice.top || sizeAdvice.mid || sizeAdvice.bottom) && (
+              <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: S.muted, marginBottom: 2 }}>
+                  Taglie consigliate
+                </div>
+                {['top', 'mid', 'bottom'].map(slotId =>
+                  sizeAdvice[slotId] ? (
+                    <SizeAdvicePill
+                      key={slotId}
+                      slotId={slotId}
+                      advice={sizeAdvice[slotId]}
+                      badge={sizeAdvice.badges?.[slotId]}
+                    />
+                  ) : null
+                )}
+              </div>
+            )}
+
+            {/* OVERALL outfit commentary */}
+            {sizeAdvice.overall && (
+              <div style={{
+                margin: '12px 14px 0',
+                padding: '12px 14px',
+                background: `linear-gradient(135deg, rgba(200,168,130,0.15), rgba(200,168,130,0.05))`,
+                border: `1px solid rgba(200,168,130,0.35)`,
+                borderRadius: 14,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <span style={{ fontSize: 14 }}>🪡</span>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: S.warm }}>
+                    Commento globale outfit
+                  </div>
+                </div>
+                <p style={{ fontSize: 13, color: S.ink, lineHeight: 1.6, margin: 0 }}>{sizeAdvice.overall}</p>
+              </div>
+            )}
+
+            {/* Price breakdown */}
+            {hasPrices && (
+              <div style={{ margin: '12px 14px 0', padding: '10px 14px', background: S.tagBg, borderRadius: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: S.muted, marginBottom: 6 }}>
+                  Prezzi
+                </div>
+                {SLOTS.map(slot => {
+                  const p = prices[slot.id]
+                  if (p == null || isNaN(Number(p))) return null
+                  return (
+                    <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, color: S.muted }}>{slot.emoji} {slot.sublabel}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: S.ink }}>{formatPrice(Number(p))}</span>
+                    </div>
+                  )
+                })}
+                {totalPrice != null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6, borderTop: `1px solid ${S.border}`, marginTop: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: S.ink }}>Totale</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: S.warm }}>{formatPrice(Number(totalPrice))}</span>
                   </div>
                 )}
               </div>
-            </div>
-            {/* Outfit image */}
-            {result.imageUrl && (
-              <div style={{ background: S.cream, position: 'relative' }}>
-                <img
-                  src={result.imageUrl}
-                  alt="Outfit generato"
-                  style={{
-                    width: '100%',
-                    maxHeight: 480,
-                    objectFit: 'contain',
-                    display: 'block',
-                  }}
-                />
-                <a
-                  href={result.imageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    position: 'absolute', bottom: 10, right: 10,
-                    background: 'rgba(17,17,17,0.72)',
-                    color: 'white', fontSize: 10, fontWeight: 600,
-                    padding: '5px 10px', borderRadius: 10,
-                    textDecoration: 'none', fontFamily: sans, letterSpacing: 0.3,
-                  }}
-                >↗ Apri</a>
-              </div>
             )}
+
+            {/* Disclaimer + Cart */}
+            <div style={{ padding: '12px 14px 16px' }}>
+              <AiAdviceDisclaimer />
+              <div style={{ marginTop: 12 }}>
+                <AddOutfitToCartBtn
+                  links={links}
+                  prices={prices}
+                  sizeAdvice={sizeAdvice.badges}
+                  onAdded={refreshCartCount}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Outfit history ── */}
+        {outfitHistory.length > 0 && (
+          <div>
+            <div style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: 2,
+              textTransform: 'uppercase', color: S.muted,
+              marginBottom: 12, marginTop: result ? 8 : 0,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span>🕐</span> Storico outfit
+            </div>
+            {outfitHistory.map(entry => (
+              <OutfitHistoryCard
+                key={entry.id}
+                entry={entry}
+                onLoad={(e) => {
+                  setLinks({
+                    top:    e.links?.top    || '',
+                    mid:    e.links?.mid    || '',
+                    bottom: e.links?.bottom || '',
+                  })
+                  setResult(null)
+                  setError(null)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                onDelete={(id) => {
+                  deleteOutfitFromHistory(id)
+                  setOutfitHistory(loadOutfitHistory())
+                }}
+                onCartAdded={refreshCartCount}
+              />
+            ))}
           </div>
         )}
 
