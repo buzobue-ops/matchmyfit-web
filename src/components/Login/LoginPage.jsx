@@ -1,12 +1,109 @@
 import { useEffect, useRef, useState } from 'react'
-import { initGoogleSignIn, renderGoogleButton, signInWithApple } from '../../services/authService.js'
-import { GOOGLE_CLIENT_ID } from '../../config.js'
+import { initGoogleSignIn, renderGoogleButton, signInWithApple, decodeJWT } from '../../services/authService.js'
+import { GOOGLE_CLIENT_ID, APPLE_SERVICE_ID, APPLE_REDIRECT_URI } from '../../config.js'
+
+// ─── Native iOS app bridge ─────────────────────────────────────────────────
+// The iOS WKWebView injects window.MatchMyFitNative when running inside the app.
+// isNativeApp() returns true when the WebView bridge is available.
+function isNativeApp() {
+  try { return !!window.MatchMyFitNative?.isAvailable?.() } catch { return false }
+}
+
+// HTTPS relay endpoint on Railway — registered in Google Cloud Console
+// Google Cloud: Authorized redirect URIs → https://matchmyfit.up.railway.app/api/oauth/callback
+// Apple Developer: Services ID return URLs → https://matchmyfit.up.railway.app/api/oauth/callback
+const OAUTH_RELAY = 'https://matchmyfit.up.railway.app/api/oauth/callback'
+
+// Build Google OAuth2 URL — redirect via HTTPS relay (accepted by Google Cloud Console)
+function buildGoogleOAuthUrl() {
+  const nonce = Math.random().toString(36).slice(2)
+  return (
+    'https://accounts.google.com/o/oauth2/v2/auth' +
+    '?client_id=' + encodeURIComponent(GOOGLE_CLIENT_ID) +
+    '&redirect_uri=' + encodeURIComponent(OAUTH_RELAY) +
+    '&response_type=code' +
+    '&scope=' + encodeURIComponent('openid email profile') +
+    '&access_type=online' +
+    '&state=google' +
+    '&nonce=' + nonce
+  )
+}
+
+// Build Apple Sign In URL — redirect via HTTPS relay (response_mode=form_post for Apple)
+function buildAppleOAuthUrl() {
+  return (
+    'https://appleid.apple.com/auth/authorize' +
+    '?client_id=' + encodeURIComponent(APPLE_SERVICE_ID) +
+    '&redirect_uri=' + encodeURIComponent(OAUTH_RELAY) +
+    '&response_type=code' +
+    '&scope=' + encodeURIComponent('name email') +
+    '&response_mode=form_post' +
+    '&state=apple'
+  )
+}
 
 export default function LoginPage({ onAuthSuccess }) {
   const [error, setError] = useState(null)
   const [appleLoading, setAppleLoading] = useState(false)
+  const [googleNativeLoading, setGoogleNativeLoading] = useState(false)
   const googleBtnRef = useRef(null)
   const googleReady = useRef(false)
+  const native = isNativeApp()
+
+  // ─── Native OAuth callback listener ─────────────────────────────────
+  // The iOS native app calls window.onMatchMyFitOAuthCallback(result) after
+  // the ASWebAuthenticationSession completes.
+  // result = { provider: 'google'|'apple', idToken?, sub?, email?, name? }
+  useEffect(() => {
+    window.onMatchMyFitOAuthCallback = (result) => {
+      // Reset any loading state
+      setAppleLoading(false)
+      setGoogleNativeLoading(false)
+      try {
+        if (!result) return
+        const { provider, idToken, sub, email, name } = result
+
+        // Decode idToken if sub not provided directly
+        let userId = sub
+        let userEmail = email
+        let displayName = name
+        if (!userId && idToken) {
+          try {
+            const payload = decodeJWT(idToken)
+            userId = payload.sub
+            userEmail = userEmail || payload.email
+            displayName = displayName || payload.name
+          } catch { /* ignore */ }
+        }
+
+        if (!userId) { setError('Auth non riuscita: nessun user ID.'); return }
+        setError(null)
+        onAuthSuccess({ id: userId, email: userEmail, displayName, authProvider: provider })
+      } catch (e) {
+        setError('Errore callback auth: ' + (e.message || 'sconosciuto'))
+      }
+    }
+    return () => { delete window.onMatchMyFitOAuthCallback }
+  }, [onAuthSuccess])
+
+  // ─── Native Google Sign In ───────────────────────────────────────────
+  async function handleGoogleNative() {
+    setGoogleNativeLoading(true)
+    setError(null)
+    try {
+      const url = buildGoogleOAuthUrl()
+      if (window.MatchMyFitNative?.startOAuth) {
+        window.MatchMyFitNative.startOAuth(url)
+        // Result arrives via window.onMatchMyFitOAuthCallback
+      } else {
+        // Fallback: open in-page redirect (works in some WebView configs)
+        window.location.href = url
+      }
+    } catch (e) {
+      setError('Google native auth non disponibile.')
+      setGoogleNativeLoading(false)
+    }
+  }
 
   // ─── Init Google Sign In ────────────────────────────────────────────
   useEffect(() => {
@@ -40,6 +137,30 @@ export default function LoginPage({ onAuthSuccess }) {
 
   // ─── Apple Sign In ──────────────────────────────────────────────────
   async function handleApple() {
+    // Native iOS: use ASAuthorizationAppleIDProvider directly.
+    // No redirect URI needed — native Apple Sign In returns idToken/userID directly.
+    // The native app must call: window.onMatchMyFitOAuthCallback({ provider:'apple', idToken, sub, email, name })
+    if (native) {
+      setAppleLoading(true)
+      setError(null)
+      try {
+        if (window.MatchMyFitNative?.startAppleAuth) {
+          window.MatchMyFitNative.startAppleAuth()
+        } else if (window.MatchMyFitNative?.startOAuth) {
+          // Fallback: some bridge implementations only expose startOAuth
+          window.MatchMyFitNative.startOAuth(buildAppleOAuthUrl())
+        } else {
+          throw new Error('Native Apple auth not available')
+        }
+        // Result arrives asynchronously via window.onMatchMyFitOAuthCallback
+        // appleLoading stays true until callback fires
+      } catch {
+        setError('Apple Sign In non disponibile. Prova con Google.')
+        setAppleLoading(false)
+      }
+      return
+    }
+
     setAppleLoading(true)
     setError(null)
     try {
@@ -158,7 +279,22 @@ export default function LoginPage({ onAuthSuccess }) {
               </p>
 
               {/* Google button */}
-              {isConfigured ? (
+              {native ? (
+                // Native iOS: custom button → ASWebAuthenticationSession
+                <button
+                  onClick={handleGoogleNative}
+                  disabled={googleNativeLoading}
+                  className="w-full py-3.5 px-4 rounded-ios flex items-center justify-center gap-3
+                             bg-white text-black font-semibold text-base
+                             active:opacity-80 transition-opacity disabled:opacity-50"
+                >
+                  {googleNativeLoading ? (
+                    <div className="spinner" style={{ borderTopColor: '#000', borderColor: 'rgba(0,0,0,0.2)' }} />
+                  ) : <GoogleIcon />}
+                  {!googleNativeLoading && <span>Continua con Google</span>}
+                </button>
+              ) : isConfigured ? (
+                // Web: Google Identity Services rendered button
                 <div ref={googleBtnRef} id="google-signin-btn" className="w-full min-h-[46px]" />
               ) : (
                 <div className="w-full py-3.5 px-4 rounded-ios flex items-center gap-3 bg-white text-black font-medium text-sm opacity-50">

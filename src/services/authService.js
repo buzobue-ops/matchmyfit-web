@@ -85,7 +85,7 @@ export async function signInWithApple() {
 
 // ─── JWT decode (no verification – we trust the provider) ────────────────
 
-function decodeJWT(token) {
+export function decodeJWT(token) {
   const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
   const json = atob(base64)
   return JSON.parse(json)

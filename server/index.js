@@ -154,6 +154,39 @@ app.post('/api/outfit', async (req, res) => {
   await proxyJSON(N8N_OUTFIT_URL, outfitBody, res, 300000) // 5 min — 3 elaborazioni
 })
 
+// ─── OAuth relay callback (Soluzione B: HTTPS relay → matchmyfit:// scheme) ──
+// Register https://matchmyfit.up.railway.app/api/oauth/callback in Google Cloud Console.
+// Google redirects here with ?code=xxx, this endpoint redirects to the native scheme.
+// This relay avoids the "invalid redirect URI" error with custom URL schemes.
+app.get('/api/oauth/callback', (req, res) => {
+  const { code, state, id_token, error } = req.query
+  if (error) {
+    return res.redirect(`matchmyfit://oauth?error=${encodeURIComponent(error)}`)
+  }
+  // Build the native deep link with all params Google sent
+  const params = new URLSearchParams()
+  if (code)     params.set('code', code)
+  if (id_token) params.set('id_token', id_token)
+  if (state)    params.set('state', state)
+  params.set('provider', 'google')
+  // Redirect to native scheme — iOS app intercepts matchmyfit://
+  res.redirect(`matchmyfit://oauth?${params.toString()}`)
+})
+
+// POST version for Apple (Apple uses form_post response mode)
+app.post('/api/oauth/callback', express.urlencoded({ extended: true }), (req, res) => {
+  const { code, id_token, state, error } = req.body
+  if (error) {
+    return res.redirect(`matchmyfit://oauth?error=${encodeURIComponent(error)}`)
+  }
+  const params = new URLSearchParams()
+  if (code)     params.set('code', code)
+  if (id_token) params.set('id_token', id_token)
+  if (state)    params.set('state', state)
+  params.set('provider', 'apple')
+  res.redirect(`matchmyfit://oauth?${params.toString()}`)
+})
+
 // ─── Image proxy (for PWA/Service Worker that blocks cross-origin Drive URLs) ─
 // Usage: /api/image-proxy?url=https://drive.google.com/thumbnail?id=XXX&sz=w800
 app.get('/api/image-proxy', async (req, res) => {
