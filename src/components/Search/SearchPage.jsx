@@ -38,6 +38,9 @@ function extractSizeBadge(text) {
   if (!text) return null
   const tagged = text.match(/[Tt]aglia\s+(XXS|XS|S|M|L|XL|XXL|XXXL|3XL|4XL|\d{2}(?:\/\d{2})?)\b/i)
   if (tagged) return tagged[1].toUpperCase()
+  // Jeans: W31, W31L32, W31/L32
+  const jeans = text.match(/\bW(\d{2})(?:[\/\s]?L\d{2})?\b/i)
+  if (jeans) return 'W' + jeans[1]
   const m = text.match(/\b(XXS|XS|S|M|L|XL|XXL|XXXL|3XL|4XL|\d{2}(?:\/\d{2})?)\b(?!\s*%)/)
   return m ? m[1].toUpperCase() : null
 }
