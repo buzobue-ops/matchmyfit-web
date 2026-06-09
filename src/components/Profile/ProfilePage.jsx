@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { sendProfileUpdate } from '../../services/webhookService.js'
+import { ImageDisclaimerBox } from '../Legal/LegalModals.jsx'
 
 // ─── Design tokens ────────────────────────────────────────────────────────
 const S = {
@@ -211,13 +212,15 @@ export default function ProfilePage({ user, onBack, onSave }) {
         <div style={{
           display: 'flex', alignItems: 'start', gap: 10,
           background: 'rgba(200,168,130,0.1)', borderRadius: 14,
-          padding: '13px 16px', marginBottom: 16,
+          padding: '13px 16px', marginBottom: 12,
         }}>
           <span style={{ fontSize: 18, flexShrink: 0 }}>💡</span>
           <p style={{ fontSize: 13, color: S.warm, fontWeight: 500, lineHeight: 1.45, margin: 0 }}>
             Foto allo specchio a figura intera per una stima delle taglie più accurata
           </p>
         </div>
+
+        <ImageDisclaimerBox />
 
         {photoBase64 ? (
           <div style={{ marginBottom: 16 }}>

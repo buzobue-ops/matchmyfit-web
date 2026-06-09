@@ -17,6 +17,38 @@ const S = {
 const serif = "'Cormorant Garamond', serif"
 const sans  = "'DM Sans', sans-serif"
 
+// ─── Extract brand from URL ───────────────────────────────────────────────
+const BRAND_MAP = {
+  'zara.com': 'ZARA', 'hm.com': 'H&M', 'cos.com': 'COS',
+  'mango.com': 'MANGO', 'asos.com': 'ASOS', 'zalando.com': 'ZALANDO',
+  'hugoboss.com': 'HUGO BOSS', 'boss.com': 'HUGO BOSS',
+  'ralphlauren.com': 'RALPH LAUREN', 'calvinklein.com': 'CALVIN KLEIN',
+  'tommyhilfiger.com': 'TOMMY', 'levi.com': 'LEVI\'S', 'gap.com': 'GAP',
+  'uniqlo.com': 'UNIQLO', 'massimodutti.com': 'M. DUTTI',
+  'pullandbear.com': 'PULL&BEAR', 'bershka.com': 'BERSHKA',
+  'stradivarius.com': 'STRADIVARIUS', 'reserved.com': 'RESERVED',
+  'nike.com': 'NIKE', 'adidas.com': 'ADIDAS', 'puma.com': 'PUMA',
+  'nordstrom.com': 'NORDSTROM', 'farfetch.com': 'FARFETCH',
+  'net-a-porter.com': 'NET-A-PORTER', 'ssense.com': 'SSENSE',
+  'boggi.com': 'BOGGI', 'boggi.com/it': 'BOGGI',
+  'spadaroma.com': 'SPADAROMA', 'antonioli.eu': 'ANTONIOLI',
+  'luisaviaroma.com': 'LUISAVIAROMA', 'rinascente.it': 'RINASCENTE',
+  'eataly.net': 'EATALY',
+}
+function extractBrand(link) {
+  if (!link) return null
+  try {
+    const host = new URL(link).hostname.replace('www.', '').toLowerCase()
+    for (const [domain, brand] of Object.entries(BRAND_MAP)) {
+      if (host.includes(domain)) return brand
+    }
+    // Fallback: capitalize first part of domain
+    const parts = host.split('.')
+    if (parts.length >= 2) return parts[0].toUpperCase()
+  } catch { /* */ }
+  return null
+}
+
 // ─── Cart Item Row ─────────────────────────────────────────────────────────
 function CartItem({ item, onRemove, onPriceChange }) {
   const [editing, setEditing] = useState(false)
@@ -30,8 +62,9 @@ function CartItem({ item, onRemove, onPriceChange }) {
     setEditing(false)
   }
 
-  const sourceLabel = item.source === 'outfit' ? 'Outfit' : 'Capo singolo'
-  const sourceColor = item.source === 'outfit' ? S.warm : S.ink
+  const sourceLabel = item.source === 'outfit' ? 'OUTFIT' : 'CAPO SINGOLO'
+  const sourceColor = item.source === 'outfit' ? S.warm : S.muted
+  const brand = extractBrand(item.link)
 
   // Try to shorten the link for display
   let displayLink = item.link
@@ -49,40 +82,57 @@ function CartItem({ item, onRemove, onPriceChange }) {
     }}>
       {/* Top row */}
       <div style={{ padding: '14px 16px 10px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        {/* Initials badge */}
+        {/* Brand badge */}
         <div style={{
           width: 44, height: 44, borderRadius: 12, flexShrink: 0,
           background: item.source === 'outfit' ? 'rgba(200,168,130,0.15)' : S.ink,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 13, fontWeight: 700,
+          fontSize: brand && brand.length <= 2 ? 14 : 11, fontWeight: 700,
           color: item.source === 'outfit' ? S.warm : 'white',
-          fontFamily: sans,
+          fontFamily: sans, letterSpacing: 0.5,
         }}>
-          {(item.name || '?').slice(0, 2).toUpperCase()}
+          {brand ? brand.slice(0, 2).toUpperCase() : (item.name || '?').slice(0, 2).toUpperCase()}
         </div>
 
         {/* Name + link */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: S.ink, lineHeight: 1.3, marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: S.ink, lineHeight: 1.3, marginBottom: 5 }}>
             {item.name || 'Prodotto'}
+          </div>
+          {/* Pills row: brand + taglia + source */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center', marginBottom: 4 }}>
+            {brand && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase',
+                padding: '2px 8px', borderRadius: 100,
+                background: S.ink, color: 'white',
+              }}>{brand}</span>
+            )}
+            {item.recommendedSize && (
+              <span style={{
+                fontSize: 9, fontWeight: 700,
+                padding: '2px 8px', borderRadius: 100,
+                background: 'rgba(200,168,130,0.15)',
+                color: S.warm,
+                border: `1px solid rgba(200,168,130,0.35)`,
+              }}>📏 {item.recommendedSize}</span>
+            )}
+            <span style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase',
+              padding: '2px 7px', borderRadius: 100,
+              background: item.source === 'outfit' ? 'rgba(200,168,130,0.10)' : S.tagBg,
+              color: sourceColor,
+            }}>{sourceLabel}</span>
           </div>
           <a
             href={item.link}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ fontSize: 11, color: S.muted, textDecoration: 'none', wordBreak: 'break-all', lineHeight: 1.4 }}
+            style={{ fontSize: 10, color: S.muted, textDecoration: 'none', wordBreak: 'break-all', lineHeight: 1.4 }}
             onClick={e => e.stopPropagation()}
           >
             {displayLink}
           </a>
-          <div style={{ marginTop: 5 }}>
-            <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
-              padding: '2px 7px', borderRadius: 100,
-              background: item.source === 'outfit' ? 'rgba(200,168,130,0.15)' : S.tagBg,
-              color: sourceColor,
-            }}>{sourceLabel}</span>
-          </div>
         </div>
 
         {/* Remove */}

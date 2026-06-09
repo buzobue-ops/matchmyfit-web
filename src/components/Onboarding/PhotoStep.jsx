@@ -1,16 +1,84 @@
 import { useRef } from 'react'
+import { ImageDisclaimerBox } from '../Legal/LegalModals.jsx'
+
+// Reads EXIF orientation from raw base64 JPEG and returns the orientation value (1-8).
+function readExifOrientation(base64) {
+  try {
+    const bin = atob(base64.slice(0, 65536)) // only need first 64 KB for EXIF
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    if (bytes[0] !== 0xFF || bytes[1] !== 0xD8) return 1 // not JPEG
+    let i = 2
+    while (i < bytes.length - 8) {
+      if (bytes[i] !== 0xFF) break
+      const marker = bytes[i + 1]
+      const len = (bytes[i + 2] << 8) | bytes[i + 3]
+      if (marker === 0xE1) { // APP1 = EXIF
+        if (String.fromCharCode(bytes[i+4], bytes[i+5], bytes[i+6], bytes[i+7]) !== 'Exif') break
+        const tiff = i + 10
+        const le = bytes[tiff] === 0x49
+        const r16 = (o) => le ? bytes[tiff+o] | (bytes[tiff+o+1] << 8) : (bytes[tiff+o] << 8) | bytes[tiff+o+1]
+        const r32 = (o) => le
+          ? bytes[tiff+o] | (bytes[tiff+o+1]<<8) | (bytes[tiff+o+2]<<16) | (bytes[tiff+o+3]<<24)
+          : (bytes[tiff+o]<<24) | (bytes[tiff+o+1]<<16) | (bytes[tiff+o+2]<<8) | bytes[tiff+o+3]
+        const ifd = r32(4)
+        const count = r16(ifd)
+        for (let j = 0; j < count; j++) {
+          const e = ifd + 2 + j * 12
+          if (r16(e) === 0x0112) return r16(e + 8)
+        }
+      }
+      i += 2 + len
+    }
+  } catch { /* ignore */ }
+  return 1
+}
+
+// Draws the image on a canvas with EXIF rotation corrected, returns corrected base64.
+async function autoOrientBase64(base64) {
+  const orientation = readExifOrientation(base64)
+  if (orientation === 1) return base64 // no rotation needed
+
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const w = img.naturalWidth
+      const h = img.naturalHeight
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (orientation > 4) { canvas.width = h; canvas.height = w }
+      else                  { canvas.width = w; canvas.height = h }
+      switch (orientation) {
+        case 2: ctx.transform(-1, 0, 0,  1,  w, 0); break
+        case 3: ctx.transform(-1, 0, 0, -1,  w, h); break
+        case 4: ctx.transform( 1, 0, 0, -1,  0, h); break
+        case 5: ctx.transform( 0, 1, 1,  0,  0, 0); break
+        case 6: ctx.transform( 0, 1,-1,  0,  h, 0); break
+        case 7: ctx.transform( 0,-1,-1,  0,  h, w); break
+        case 8: ctx.transform( 0,-1, 1,  0,  0, w); break
+        default: break
+      }
+      ctx.drawImage(img, 0, 0)
+      const result = canvas.toDataURL('image/jpeg', 0.88).replace(/^data:image\/jpeg;base64,/, '')
+      resolve(result)
+    }
+    img.onerror = () => resolve(base64)
+    img.src = `data:image/jpeg;base64,${base64}`
+  })
+}
 
 export default function PhotoStep({ photoBase64, photoUploaded, onPhotoSelected }) {
   const cameraInputRef = useRef(null)
   const galleryInputRef = useRef(null)
 
-  function handleFileChange(e) {
+  async function handleFileChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => {
-      const base64 = reader.result.replace(/^data:image\/[^;]+;base64,/, '')
-      onPhotoSelected(base64)
+    reader.onload = async () => {
+      const raw = reader.result.replace(/^data:image\/[^;]+;base64,/, '')
+      const corrected = await autoOrientBase64(raw)
+      onPhotoSelected(corrected)
     }
     reader.readAsDataURL(file)
     e.target.value = ''
@@ -36,12 +104,17 @@ export default function PhotoStep({ photoBase64, photoUploaded, onPhotoSelected 
       </p>
 
       {/* Mirror tip */}
-      <div className="flex items-start gap-2 rounded-ios px-4 py-3 mb-5 w-full"
+      <div className="flex items-start gap-2 rounded-ios px-4 py-3 mb-4 w-full"
            style={{ backgroundColor: 'rgba(0,122,255,0.08)' }}>
         <span className="text-lg leading-tight">💡</span>
         <p className="text-ios-blue text-sm font-medium leading-snug">
           È consigliato fare una foto allo specchio a figura intera
         </p>
+      </div>
+
+      {/* Legal disclaimer */}
+      <div className="w-full mb-1">
+        <ImageDisclaimerBox />
       </div>
 
       {/* Photo preview or placeholder */}

@@ -10,6 +10,7 @@ import UsernameStep from './UsernameStep.jsx'
 import MeasurementsStep from './MeasurementsStep.jsx'
 import PhotoStep from './PhotoStep.jsx'
 import LoadingOverlay from '../UI/LoadingOverlay.jsx'
+import ConsentStep, { hasConsented } from '../Legal/ConsentStep.jsx'
 
 // ─── Derive a clean username from OAuth display name or email ─────────────
 function deriveUsername(user) {
@@ -30,6 +31,9 @@ export default function OnboardingFlow({ user, onComplete, onUpdateUser }) {
   // For OAuth users (Google/Apple) skip the username step entirely
   const isOAuth = user?.authProvider === 'google' || user?.authProvider === 'apple'
   const TOTAL_STEPS = isOAuth ? 2 : 3
+
+  // Consent gate
+  const [consentDone, setConsentDone] = useState(() => hasConsented())
 
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -156,6 +160,19 @@ export default function OnboardingFlow({ user, onComplete, onUpdateUser }) {
 
   // ─── Progress bar ────────────────────────────────────────────────────
   const progress = ((step + 1) / TOTAL_STEPS) * 100
+
+  // ── Consent gate ──────────────────────────────────────────────────────
+  if (!consentDone) {
+    return (
+      <div className="min-h-screen bg-ios-bg flex flex-col">
+        <div className="flex-1 overflow-y-auto pt-10 pb-8">
+          <div className="px-4 max-w-lg mx-auto w-full">
+            <ConsentStep onAccept={() => setConsentDone(true)} />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-ios-bg flex flex-col">

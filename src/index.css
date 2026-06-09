@@ -123,6 +123,7 @@ body {
   border-top-color: #fff;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 
 /* ─── Scrollbar (hide on touch, subtle on desktop) ────────────────────── */
 ::-webkit-scrollbar { width: 0; background: transparent; }

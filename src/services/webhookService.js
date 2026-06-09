@@ -333,6 +333,14 @@ function decodeBase64Image(raw) {
   return raw.replace(/^data:image\/[^;]+;base64,/, '')
 }
 
+// Proxy Google Drive image URLs through our server so they load in PWA/Service Worker context
+function proxyDriveUrl(url) {
+  if (!url || typeof url !== 'string') return url
+  if (!url.startsWith('https://drive.google.com/')) return url
+  const API_BASE = import.meta.env.VITE_API_URL || ''
+  return `${API_BASE}/api/image-proxy?url=${encodeURIComponent(url)}`
+}
+
 function extractSizeFromText(text) {
   if (!text) return null
   const sizes = /\b(XS|S|M|L|XL|XXL|XXXL|\d{2}(?:\/\d{2})?)\b/g
@@ -381,7 +389,7 @@ export function applyResponseToResult(searchId, json, onUpdate, status = 'comple
 
   if (typeof imageRaw === 'string') {
     if (imageRaw.startsWith('http')) {
-      imageUrl = imageRaw
+      imageUrl = proxyDriveUrl(imageRaw) // proxy Drive URLs for PWA compatibility
     } else {
       imageBase64 = decodeBase64Image(imageRaw)
     }

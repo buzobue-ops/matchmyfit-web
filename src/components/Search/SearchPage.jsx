@@ -468,8 +468,9 @@ function Lightbox({ src, onClose }) {
       <img
         src={src}
         alt="Risultato fit"
+        crossOrigin="anonymous"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '100vh', maxHeight: '100vw', objectFit: 'contain', transform: 'rotate(90deg)' }}
+        style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain' }}
       />
     </div>,
     document.body
@@ -488,10 +489,11 @@ function ResultImage({ src, onOpen }) {
       <img
         src={src}
         alt="Risultato fit"
+        crossOrigin="anonymous"
         style={{
           position: 'absolute', top: '50%', left: '50%',
-          width: '133%', height: '100%',
-          transform: 'translate(-50%, -50%) rotate(90deg)',
+          width: '100%', height: '100%',
+          transform: 'translate(-50%, -50%)',
           objectFit: 'cover',
         }}
       />

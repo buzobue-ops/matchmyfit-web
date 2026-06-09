@@ -154,6 +154,31 @@ app.post('/api/outfit', async (req, res) => {
   await proxyJSON(N8N_OUTFIT_URL, outfitBody, res, 300000) // 5 min — 3 elaborazioni
 })
 
+// ─── Image proxy (for PWA/Service Worker that blocks cross-origin Drive URLs) ─
+// Usage: /api/image-proxy?url=https://drive.google.com/thumbnail?id=XXX&sz=w800
+app.get('/api/image-proxy', async (req, res) => {
+  const { url } = req.query
+  if (!url || !url.startsWith('https://drive.google.com/')) {
+    return res.status(400).send('Invalid URL')
+  }
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: controller.signal,
+    })
+    clearTimeout(timer)
+    const contentType = response.headers.get('content-type') || 'image/jpeg'
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    const buf = await response.arrayBuffer()
+    res.send(Buffer.from(buf))
+  } catch (err) {
+    res.status(502).send('Image proxy error')
+  }
+})
+
 // ─── Search history API ────────────────────────────────────────────────────
 
 // GET /api/history?userId=xxx  → array of search results for that user

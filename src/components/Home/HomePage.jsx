@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { loadSearchHistory } from '../../services/storageService.js'
+import { loadSearchHistory, loadOutfitHistory, clearSearchHistory } from '../../services/storageService.js'
 
 const S = {
   ink:    '#111111',
@@ -30,9 +30,9 @@ function FitMyCartLogo() {
           <path d="M20.5 5.5 C20.5 4.7 19.8 4 19 4.5 C18.2 4 17.5 4.7 17.5 5.5 C17.5 6.5 19 8 19 8 C19 8 20.5 6.5 20.5 5.5Z" fill="#C8A882"/>
         </g>
         <text x="32" y="26" fontFamily="'Cormorant Garamond',serif" fontWeight="600" fontSize="26" fill="#111111" letterSpacing="-0.5">Fit</text>
-        <text x="74" y="20" fontFamily="'Cormorant Garamond',serif" fontWeight="300" fontStyle="italic" fontSize="18" fill="#C8A882">My</text>
-        <text x="99" y="26" fontFamily="'Cormorant Garamond',serif" fontWeight="300" fontSize="26" fill="#111111" letterSpacing="-0.5">Cart</text>
-        <line x1="32" y1="30" x2="158" y2="30" stroke="#C8A882" strokeWidth="0.5" opacity="0.4"/>
+        <text x="59" y="20" fontFamily="'Cormorant Garamond',serif" fontWeight="300" fontStyle="italic" fontSize="18" fill="#C8A882">My</text>
+        <text x="79" y="26" fontFamily="'Cormorant Garamond',serif" fontWeight="300" fontSize="26" fill="#111111" letterSpacing="-0.5">Cart</text>
+        <line x1="32" y1="30" x2="128" y2="30" stroke="#C8A882" strokeWidth="0.5" opacity="0.4"/>
       </svg>
       <div style={{
         fontFamily: "'DM Sans', sans-serif",
@@ -71,7 +71,7 @@ function AvatarBtn({ user, onClick }) {
 }
 
 // ─── Account sheet ────────────────────────────────────────────────────────
-function AccountSheet({ user, onClose, onSignOut, onEditProfile }) {
+function AccountSheet({ user, onClose, onSignOut, onEditProfile, onDeleteAccount }) {
   return createPortal(
     <>
       <div
@@ -134,13 +134,26 @@ function AccountSheet({ user, onClose, onSignOut, onEditProfile }) {
           <button
             onClick={onSignOut}
             style={{
-              width: '100%', padding: '14px', borderRadius: 14,
+              width: '100%', padding: '14px', borderRadius: 14, marginBottom: 8,
               background: '#FFF0F0', border: '1.5px solid #E8B4B4',
               color: '#C94040', fontFamily: "'DM Sans', sans-serif",
               fontSize: 15, fontWeight: 600, cursor: 'pointer',
             }}
           >
             Esci
+          </button>
+
+          {/* Account deletion — required by Apple App Store guideline 5.1.1(v) */}
+          <button
+            onClick={onDeleteAccount}
+            style={{
+              width: '100%', padding: '12px', borderRadius: 14,
+              background: 'transparent', border: '1px solid #E2DAD0',
+              color: '#8C8279', fontFamily: "'DM Sans', sans-serif",
+              fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            Elimina account e dati
           </button>
           <button
             onClick={onClose}
@@ -161,46 +174,82 @@ function AccountSheet({ user, onClose, onSignOut, onEditProfile }) {
 }
 
 // ─── Recent chip ──────────────────────────────────────────────────────────
-function RecentChip({ result }) {
-  const label = result.productName || (result.productLink ? new URL(result.productLink).hostname.replace('www.', '') : '—')
-  const initials = label.slice(0, 2).toUpperCase()
-  const colors = ['#111111', '#C8A882', '#8C8279', '#3d2810']
-  const col = colors[label.charCodeAt(0) % colors.length]
+function RecentChip({ item, onClick }) {
+  const isOutfit = item._type === 'outfit'
+  const label = isOutfit
+    ? 'Custom Outfit'
+    : (item.productName || (() => { try { return new URL(item.productLink).hostname.replace('www.', '') } catch { return 'Capo' } })())
+  const initials = isOutfit ? '🪡' : label.slice(0, 2).toUpperCase()
+  const badgeColor = isOutfit ? '#C8A882' : '#111111'
+  const badgeBg    = isOutfit ? 'rgba(200,168,130,0.13)' : '#111111'
+
+  const price = isOutfit
+    ? (item.totalPrice != null ? new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(item.totalPrice) : null)
+    : (item.productPrice != null ? new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(item.productPrice) : null)
+
+  const size = !isOutfit ? (item.recommendedSize || null) : null
+
   return (
-    <div style={{
+    <button onClick={onClick} style={{
       flexShrink: 0,
       background: 'white',
-      border: '1px solid #E2DAD0',
+      border: '1.5px solid #E2DAD0',
       borderRadius: 14,
-      padding: '10px 14px',
-      display: 'flex', alignItems: 'center', gap: 8,
-      cursor: 'pointer',
-    }}>
+      padding: '10px 12px',
+      display: 'flex', alignItems: 'flex-start', gap: 8,
+      cursor: 'pointer', textAlign: 'left',
+      transition: 'border-color 0.18s',
+      maxWidth: 170,
+      fontFamily: "'DM Sans', sans-serif",
+    }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = '#C8A882'}
+      onMouseLeave={e => e.currentTarget.style.borderColor = '#E2DAD0'}
+    >
       <div style={{
-        width: 36, height: 36, borderRadius: 10,
-        background: col,
+        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+        background: badgeBg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 700, color: 'white',
-        fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.5px',
-        flexShrink: 0,
+        fontSize: isOutfit ? 18 : 11, fontWeight: 700, color: isOutfit ? 'unset' : 'white',
+        letterSpacing: '0.5px', marginTop: 1,
       }}>{initials}</div>
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: '#111111' }}>
-          {label.slice(0, 16)}{label.length > 16 ? '…' : ''}
+      <div style={{ minWidth: 0 }}>
+        {/* Type badge */}
+        <div style={{
+          fontSize: 8, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
+          color: isOutfit ? '#C8A882' : '#8C8279', marginBottom: 2,
+        }}>{isOutfit ? 'Custom Outfit' : 'Singolo Capo'}</div>
+        {/* Name */}
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#111111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
+          {label.slice(0, 20)}{label.length > 20 ? '…' : ''}
         </div>
-        <div style={{ fontSize: 10, color: '#8C8279', marginTop: 1 }}>
-          {result.status === 'completed' ? 'Completato' : result.status === 'failed' ? 'Fallito' : 'Analizzato'}
-        </div>
+        {/* Size + price */}
+        {(size || price) && (
+          <div style={{ display: 'flex', gap: 5, marginTop: 3, alignItems: 'center', flexWrap: 'wrap' }}>
+            {size  && <span style={{ fontSize: 9, fontWeight: 700, color: '#C8A882', background: 'rgba(200,168,130,0.1)', padding: '1px 5px', borderRadius: 6 }}>{size}</span>}
+            {price && <span style={{ fontSize: 9, fontWeight: 600, color: '#8C8279' }}>{price}</span>}
+          </div>
+        )}
       </div>
-    </div>
+    </button>
   )
 }
 
 // ─── HomePage ─────────────────────────────────────────────────────────────
 export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelectProfile, onSelectCart, onSelectBrowse, onSignOut, onUpdateUser }) {
   const [showAccount, setShowAccount] = useState(false)
-  const history = loadSearchHistory().slice(0, 6)
   const cartCount = (() => { try { return JSON.parse(localStorage.getItem('mmf_cart') || '[]').length } catch { return 0 } })()
+
+  // Merge search history + outfit history, sorted by date, max 8
+  const recentItems = (() => {
+    const searches = loadSearchHistory()
+      .filter(r => r.status === 'completed' && r.productLink)
+      .map(r => ({ ...r, _type: 'search', _date: new Date(r.createdAt || 0) }))
+    const outfits = loadOutfitHistory()
+      .map(r => ({ ...r, _type: 'outfit', _date: new Date(r.createdAt || 0) }))
+    return [...searches, ...outfits]
+      .sort((a, b) => b._date - a._date)
+      .slice(0, 8)
+  })()
 
   return (
     <div style={{ minHeight: '100vh', background: '#FDFAF5', fontFamily: "'DM Sans', sans-serif" }}>
@@ -290,7 +339,7 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
             letterSpacing: 1, textTransform: 'uppercase',
             width: 'fit-content',
           }}>
-            ✦  AI Stylist
+            ✦  AI Personal Buyer
           </div>
           <div>
             <div style={{
@@ -301,7 +350,7 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
               Fit.<br /><em style={{ color: '#C8A882', fontStyle: 'italic' }}>Match. Buy.</em>
             </div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 6, letterSpacing: 0.3 }}>
-              Il tuo stylist AI personale
+              Il tuo personal buyer AI
             </div>
           </div>
         </div>
@@ -415,19 +464,28 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
       </div>
 
       {/* ── Recent ── */}
-      {history.length > 0 && (
+      {recentItems.length > 0 && (
         <div style={{ padding: '28px 24px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: '#111111' }}>Recenti</div>
             <button
-              onClick={onSelectSearch}
+              onClick={() => onSelectSearch()}
               style={{ fontSize: 12, color: '#C8A882', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer' }}
             >
               Vedi tutti
             </button>
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
-            {history.map(r => <RecentChip key={r.id} result={r} />)}
+            {recentItems.map(item => (
+              <RecentChip
+                key={item.id}
+                item={item}
+                onClick={() => {
+                  if (item._type === 'outfit') onSelectOutfit(item)
+                  else onSelectSearch(item.id)
+                }}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -477,6 +535,14 @@ export default function HomePage({ user, onSelectSearch, onSelectOutfit, onSelec
           onClose={() => setShowAccount(false)}
           onSignOut={onSignOut}
           onEditProfile={() => { setShowAccount(false); onSelectProfile?.() }}
+          onDeleteAccount={() => {
+            if (!window.confirm('Sei sicuro di voler eliminare il tuo account e tutti i dati? Questa azione è irreversibile.')) return
+            clearSearchHistory()
+            localStorage.removeItem('mmf_outfit_history')
+            localStorage.removeItem('mmf_cart')
+            localStorage.removeItem('mmf_consents_v1')
+            onSignOut?.()
+          }}
         />
       )}
     </div>

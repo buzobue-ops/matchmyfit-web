@@ -40,20 +40,30 @@ export default function LoginPage({ onAuthSuccess }) {
 
   // ─── Apple Sign In ──────────────────────────────────────────────────
   async function handleApple() {
-    if (!window.AppleID?.auth) {
-      setError('Apple Sign In non è disponibile in questo browser. Prova con Safari su iOS/macOS.')
-      return
-    }
     setAppleLoading(true)
     setError(null)
     try {
+      // Attempt to load Apple ID SDK if not yet available (e.g., in PWA/offline)
+      if (!window.AppleID?.auth) {
+        await new Promise((resolve, reject) => {
+          if (window.AppleID?.auth) return resolve()
+          const script = document.createElement('script')
+          script.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js'
+          script.onload = () => resolve()
+          script.onerror = () => reject(new Error('Apple SDK not available'))
+          document.head.appendChild(script)
+          setTimeout(() => reject(new Error('Apple SDK timeout')), 5000)
+        })
+      }
       const user = await signInWithApple()
       onAuthSuccess(user)
     } catch (e) {
-      if (e.error === 'popup_closed_by_user') {
-        // user cancelled – ignore
+      if (e.error === 'popup_closed_by_user' || e.error === 'user_cancelled_authorize') {
+        // user cancelled – ignore silently
+      } else if (e.message?.includes('not available') || e.message?.includes('timeout')) {
+        setError('Accesso con Apple non disponibile in questo browser. Usa Google oppure apri l\'app in Safari.')
       } else {
-        setError(e.message || 'Accesso Apple non riuscito.')
+        setError(e.message || 'Accesso Apple non riuscito. Riprova.')
       }
     } finally {
       setAppleLoading(false)
