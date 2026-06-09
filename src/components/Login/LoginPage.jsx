@@ -76,30 +76,69 @@ export default function LoginPage({ onAuthSuccess }) {
     <div className="min-h-screen flex flex-col bg-black overflow-hidden">
       {/* ── Hero gradient ── */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-safe-top relative">
-        {/* Background gradient */}
+        {/* Background — on-brand dark warm */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: 'linear-gradient(160deg, #0A0A0A 0%, #111827 50%, #0F1E3D 100%)',
+            background: 'linear-gradient(160deg, #111111 0%, #1A1710 45%, #111111 100%)',
           }}
         />
+        {/* Subtle texture grid (brand touch) */}
+        <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.03 }}>
+          <svg width="100%" height="100%"><defs><pattern id="g" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0M0 80V0" stroke="#C8A882" strokeWidth="0.5"/></pattern></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>
+        </div>
 
-        {/* Logo / brand */}
+        {/* ── FitMyCart Brand ── */}
         <div className="relative z-10 flex flex-col items-center mb-12">
-          <div
-            className="w-20 h-20 rounded-[22px] flex items-center justify-center mb-5 shadow-ios-lg"
-            style={{
-              background: 'linear-gradient(135deg, #007AFF 0%, #0055CC 100%)',
-            }}
-          >
-            <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
-              <path d="M8 34L22 10L36 34" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M13 26H31" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
+
+          {/* App icon — FitMyCart iOS master */}
+          <div style={{ width: 88, height: 88, borderRadius: 20, overflow: 'hidden', marginBottom: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 4px 20px rgba(200,168,130,0.15)' }}>
+            <svg width="88" height="88" viewBox="0 0 1024 1024" fill="none">
+              <defs>
+                <linearGradient id="lbg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#1C1C1C"/>
+                  <stop offset="100%" stopColor="#0a0a0a"/>
+                </linearGradient>
+                <linearGradient id="lgold" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#D4B896"/>
+                  <stop offset="100%" stopColor="#B8926A"/>
+                </linearGradient>
+              </defs>
+              <rect width="1024" height="1024" fill="url(#lbg)"/>
+              {/* subtle grid */}
+              <g opacity="0.05" stroke="#C8A882" strokeWidth="1.5">
+                <line x1="0" y1="256" x2="1024" y2="256"/><line x1="0" y1="512" x2="1024" y2="512"/>
+                <line x1="0" y1="768" x2="1024" y2="768"/><line x1="256" y1="0" x2="256" y2="1024"/>
+                <line x1="512" y1="0" x2="512" y2="1024"/><line x1="768" y1="0" x2="768" y2="1024"/>
+              </g>
+              {/* Cart outline */}
+              <path d="M136 168 L256 168 L390 620 L790 620 L856 310 L298 310" stroke="white" strokeWidth="52" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+              {/* Wheels */}
+              <circle cx="434" cy="736" r="66" stroke="white" strokeWidth="42" fill="none"/>
+              <circle cx="690" cy="736" r="66" stroke="white" strokeWidth="42" fill="none"/>
+              {/* Link / fitting icon (gold) */}
+              <rect x="370" y="392" width="168" height="112" rx="38" stroke="url(#lgold)" strokeWidth="28" fill="none"/>
+              <rect x="464" y="448" width="168" height="112" rx="38" stroke="url(#lgold)" strokeWidth="28" fill="none"/>
+              <rect x="452" y="436" width="68" height="68" rx="14" fill="#111111"/>
+              <rect x="466" y="450" width="40" height="40" rx="8" fill="url(#lgold)"/>
+              {/* Heart */}
+              <path d="M730 188 C730 162 706 142 682 158 C658 142 634 162 634 188 C634 222 682 256 682 256 C682 256 730 222 730 188Z" fill="url(#lgold)"/>
+              {/* Top gloss */}
+              <rect width="1024" height="380" fill="white" opacity="0.018"/>
             </svg>
           </div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">MatchMyFit</h1>
-          <p className="text-[#8E8E93] text-base mt-2 text-center max-w-[260px]">
-            Trova la tua taglia perfetta per ogni capo
+
+          {/* Wordmark — Cormorant Garamond (already loaded) */}
+          <svg width="210" height="60" viewBox="0 0 210 60" fill="none" style={{ marginBottom: 8 }}>
+            <text x="0" y="50" fontFamily="'Cormorant Garamond',serif" fontWeight="600" fontSize="56" fill="white" letterSpacing="-1">Fit</text>
+            <text x="62" y="40" fontFamily="'Cormorant Garamond',serif" fontWeight="300" fontStyle="italic" fontSize="34" fill="#C8A882">My</text>
+            <text x="103" y="50" fontFamily="'Cormorant Garamond',serif" fontWeight="300" fontSize="56" fill="white" letterSpacing="-1">Cart</text>
+            <line x1="0" y1="57" x2="200" y2="57" stroke="#C8A882" strokeWidth="0.7" opacity="0.35"/>
+          </svg>
+
+          {/* Tagline */}
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 300, letterSpacing: '4px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', marginTop: 2 }}>
+            Match. Fit. Favorite. Buy.
           </p>
         </div>
 
