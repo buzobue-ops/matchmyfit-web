@@ -19,10 +19,14 @@ export const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com'
 
 // ─── Apple Sign In ────────────────────────────────────────────────────────
-// Create a Services ID in Apple Developer → Certificates, IDs & Profiles.
-// The Return URL must be the exact origin of this site.
+// Setup:
+//   1. Apple Developer → Identifiers → + → Services IDs
+//   2. Description: "FitMyCart Web"  |  Identifier: com.matchmyfit.webapp
+//   3. Enable "Sign In with Apple" → Configure
+//   4. Domain: zerodb.studio  |  Return URL: https://www.zerodb.studio
+//   5. Set Railway env vars: VITE_APPLE_SERVICE_ID + VITE_APPLE_REDIRECT_URI
 export const APPLE_SERVICE_ID =
-  import.meta.env.VITE_APPLE_SERVICE_ID || 'com.matchmyfit.web'
+  import.meta.env.VITE_APPLE_SERVICE_ID || 'com.matchmyfit.webapp'
 
 export const APPLE_REDIRECT_URI =
   import.meta.env.VITE_APPLE_REDIRECT_URI || window.location.origin

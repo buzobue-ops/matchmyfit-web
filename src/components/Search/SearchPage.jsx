@@ -483,19 +483,14 @@ function ResultImage({ src, onOpen }) {
   return (
     <button
       type="button"
-      style={{ position: 'relative', width: '100%', borderRadius: 16, background: S.tagBg, overflow: 'hidden', paddingTop: '133%', display: 'block', border: 'none', cursor: 'pointer' }}
+      style={{ display: 'block', width: '100%', borderRadius: 16, background: S.tagBg, overflow: 'hidden', border: 'none', cursor: 'pointer', padding: 0 }}
       onClick={(e) => { e.stopPropagation(); onOpen(src) }}
     >
       <img
         src={src}
         alt="Risultato fit"
         crossOrigin="anonymous"
-        style={{
-          position: 'absolute', top: '50%', left: '50%',
-          width: '100%', height: '100%',
-          transform: 'translate(-50%, -50%)',
-          objectFit: 'cover',
-        }}
+        style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 16 }}
       />
       <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(17,17,17,0.5)', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
