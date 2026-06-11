@@ -33,6 +33,26 @@ function readSharedUrl() {
   return null
 }
 
+// ─── Native app auth handoff ──────────────────────────────────────────────
+// The iOS container app loads the WebView with ?nativeAuth=1&provider=...&email=...
+// This function reads those params, saves the user and cleans the URL.
+// Returns a user object if nativeAuth=1, null otherwise.
+function readNativeAuth() {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('nativeAuth') !== '1') return null
+    const provider    = p.get('provider') || 'google'
+    const email       = p.get('email')    || ''
+    const name        = p.get('name')     || ''
+    const token       = p.get('token')    || ''
+    const id          = p.get('id')       || (email ? 'native_' + email : null)
+    if (!id && !email) return null
+    // Clean URL so params don't persist after a reload
+    window.history.replaceState({}, '', window.location.pathname)
+    return { id, email, displayName: name, authProvider: provider, token, onboardingComplete: true }
+  } catch { return null }
+}
+
 // ─── Route states ────────────────────────────────────────────────────────
 // 'loading'    initial check
 // 'login'      unauthenticated
@@ -52,8 +72,25 @@ export default function App() {
   // URL received via PWA Share Target
   const [sharedUrl, setSharedUrl] = useState(() => readSharedUrl())
 
-  // ─── On mount: restore session from localStorage ──────────────────────
+  // ─── On mount: restore session from localStorage OR native handoff ──────
   useEffect(() => {
+    // 1. Native app auth: iOS container passes user via URL params
+    const nativeUser = readNativeAuth()
+    if (nativeUser) {
+      saveUser(nativeUser)
+      setUser(nativeUser)
+      syncHistoryFromServer(nativeUser.id)
+      setRoute('home')
+      return
+    }
+
+    // 2. Native logout bridge: iOS calls window.MatchMyFitNative.logout()
+    window.onMatchMyFitLogout = () => {
+      clearUser()
+      setUser(null)
+      setRoute('login')
+    }
+
     const stored = loadUser()
     if (!stored) {
       setRoute('login')
