@@ -154,6 +154,30 @@ app.post('/api/outfit', async (req, res) => {
   await proxyJSON(N8N_OUTFIT_URL, outfitBody, res, 300000) // 5 min — 3 elaborazioni
 })
 
+// ─── Freemium quota & subscription (proxy to n8n) ───────────────────────────
+// Web fallback path. On iOS the native bridge handles these directly.
+const N8N_CHECK_QUOTA_URL   = 'https://buzobue.app.n8n.cloud/webhook/check-quota'
+const N8N_RECORD_USAGE_URL  = 'https://buzobue.app.n8n.cloud/webhook/record-usage'
+const N8N_SUB_SYNC_URL      = 'https://buzobue.app.n8n.cloud/webhook/subscription-sync'
+
+// Check if user can start a new analysis (before each search/outfit)
+app.post('/api/quota/check', async (req, res) => {
+  console.log('[quota/check] userId =', req.body.userId)
+  await proxyJSON(N8N_CHECK_QUOTA_URL, req.body, res, 10000)
+})
+
+// Record a completed analysis (increment usage_count)
+app.post('/api/quota/record', async (req, res) => {
+  console.log('[quota/record] userId =', req.body.userId, 'kind =', req.body.kind)
+  await proxyJSON(N8N_RECORD_USAGE_URL, req.body, res, 10000)
+})
+
+// Sync subscription after StoreKit purchase
+app.post('/api/subscription/sync', async (req, res) => {
+  console.log('[subscription/sync] userId =', req.body.userId, 'productId =', req.body.productId)
+  await proxyJSON(N8N_SUB_SYNC_URL, req.body, res, 10000)
+})
+
 // ─── OAuth relay callback (Soluzione B: HTTPS relay → matchmyfit:// scheme) ──
 // Register https://matchmyfit.up.railway.app/api/oauth/callback in Google Cloud Console.
 // Google redirects here with ?code=xxx, this endpoint redirects to the native scheme.
@@ -299,6 +323,120 @@ app.delete('/api/history', async (req, res) => {
   } catch (err) {
     console.error('[history] DELETE all error:', err.message)
     res.json({ ok: false })
+  }
+})
+
+// ─── Freemium quota (2 completed analyses, then subscription) ─────────────
+
+const FREE_ANALYSIS_LIMIT = 2
+
+async function ensureQuotaTable() {
+  if (!db) return
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS usage_quotas (
+      user_id          TEXT PRIMARY KEY,
+      email            TEXT,
+      usage_count      INT DEFAULT 0,
+      subscribed       BOOLEAN DEFAULT FALSE,
+      subscription_expires TIMESTAMPTZ,
+      updated_at       TIMESTAMPTZ DEFAULT NOW()
+    );
+  `)
+}
+if (db) ensureQuotaTable().catch(err => console.error('[quota] init:', err.message))
+
+app.post('/api/quota/check', async (req, res) => {
+  const { userId, email } = req.body || {}
+  if (!userId) return res.status(400).json({ error: 'Missing userId' })
+
+  if (!db) {
+    return res.json({
+      allowed: true,
+      usageCount: 0,
+      freeLimit: FREE_ANALYSIS_LIMIT,
+      freeUsesRemaining: FREE_ANALYSIS_LIMIT,
+      hasSubscription: false,
+    })
+  }
+
+  try {
+    const { rows } = await db.query(
+      'SELECT usage_count, subscribed, subscription_expires FROM usage_quotas WHERE user_id = $1',
+      [userId]
+    )
+    let usage = 0
+    let subscribed = false
+    if (rows.length) {
+      usage = rows[0].usage_count || 0
+      subscribed = !!rows[0].subscribed
+      if (rows[0].subscription_expires && new Date(rows[0].subscription_expires) < new Date()) {
+        subscribed = false
+      }
+    } else if (email) {
+      await db.query(
+        'INSERT INTO usage_quotas (user_id, email) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [userId, email]
+      )
+    }
+    const remaining = Math.max(0, FREE_ANALYSIS_LIMIT - usage)
+    res.json({
+      allowed: subscribed || remaining > 0,
+      usageCount: usage,
+      freeLimit: FREE_ANALYSIS_LIMIT,
+      freeUsesRemaining: subscribed ? 0 : remaining,
+      hasSubscription: subscribed,
+    })
+  } catch (err) {
+    console.error('[quota/check]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.post('/api/quota/record', async (req, res) => {
+  const { userId, email, kind } = req.body || {}
+  if (!userId) return res.status(400).json({ error: 'Missing userId' })
+  if (!db) return res.json({ ok: true })
+
+  try {
+    await db.query(`
+      INSERT INTO usage_quotas (user_id, email, usage_count, updated_at)
+      VALUES ($1, $2, 1, NOW())
+      ON CONFLICT (user_id) DO UPDATE SET
+        email = COALESCE(EXCLUDED.email, usage_quotas.email),
+        usage_count = CASE
+          WHEN usage_quotas.subscribed = TRUE THEN usage_quotas.usage_count
+          ELSE usage_quotas.usage_count + 1
+        END,
+        updated_at = NOW()
+    `, [userId, email || null])
+    console.log('[quota/record]', userId, kind || 'analysis')
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[quota/record]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.post('/api/subscription/sync', async (req, res) => {
+  const { userId, email, subscribed, expiresAt } = req.body || {}
+  if (!userId) return res.status(400).json({ error: 'Missing userId' })
+  if (!db) return res.json({ ok: true })
+
+  try {
+    await db.query(`
+      INSERT INTO usage_quotas (user_id, email, subscribed, subscription_expires, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (user_id) DO UPDATE SET
+        email = COALESCE(EXCLUDED.email, usage_quotas.email),
+        subscribed = EXCLUDED.subscribed,
+        subscription_expires = EXCLUDED.subscription_expires,
+        updated_at = NOW()
+    `, [userId, email || null, !!subscribed, expiresAt || null])
+    console.log('[subscription/sync]', userId, subscribed)
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[subscription/sync]', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 
