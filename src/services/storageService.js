@@ -49,8 +49,51 @@ const KEYS = {
 
 // ─── User session ─────────────────────────────────────────────────────────
 
+function photoCacheKey(userId) {
+  return `mmf_photo_b64_${userId}`
+}
+
+/** Foto profilo in cache locale (sopravvive al re-login nativo). */
+export function saveUserPhoto(userId, base64) {
+  if (!userId || !base64) return
+  try {
+    localStorage.setItem(photoCacheKey(userId), stripPhotoBase64ForCache(base64))
+  } catch { /* quota */ }
+}
+
+export function loadUserPhoto(userId) {
+  if (!userId) return null
+  try {
+    return localStorage.getItem(photoCacheKey(userId)) || null
+  } catch {
+    return null
+  }
+}
+
+export function clearUserPhoto(userId) {
+  if (!userId) return
+  try { localStorage.removeItem(photoCacheKey(userId)) } catch { /* */ }
+}
+
+function stripPhotoBase64ForCache(raw) {
+  return String(raw).replace(/^data:image\/[^;]+;base64,/, '')
+}
+
 export function saveUser(user) {
-  localStorage.setItem(KEYS.user, JSON.stringify(user))
+  try {
+    // Photo goes to its own cache key…
+    const b64 = user?.photoBase64 || user?.photo_base64
+    if (user?.id && b64) saveUserPhoto(user.id, b64)
+    // …and NEVER inside mmf_user: a multi-MB base64 in the user JSON
+    // exceeded the localStorage quota and the uncaught QuotaExceededError
+    // (thrown inside a setUser updater) blanked the whole app after
+    // saving a profile photo. Persist a lean copy instead.
+    const lean = { ...user }
+    delete lean.photoBase64
+    delete lean.photo_base64
+    delete lean.imageBase64
+    localStorage.setItem(KEYS.user, JSON.stringify(lean))
+  } catch { /* quota exceeded / private mode — session survives in memory */ }
 }
 
 export function loadUser() {
