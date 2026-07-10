@@ -56,7 +56,7 @@ await build({
     // Vite-only global: without this, import.meta.env is undefined at runtime
     // and the whole bundle crashes at module load (blank page).
     'import.meta.env.BASE_URL': JSON.stringify('./'),
-    'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || ''),
+    'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || '/matchmyfit'),
     'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(env.VITE_GOOGLE_CLIENT_ID || ''),
     'import.meta.env.VITE_APPLE_SERVICE_ID': JSON.stringify(env.VITE_APPLE_SERVICE_ID || ''),
     'import.meta.env.VITE_APPLE_REDIRECT_URI': JSON.stringify(env.VITE_APPLE_REDIRECT_URI || ''),
@@ -90,6 +90,12 @@ for (const name of ['icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webman
 
 if (existsSync(path.join(root, 'public', '.htaccess'))) {
   copyFileSync(path.join(root, 'public', '.htaccess'), path.join(dist, '.htaccess'))
+}
+
+// PHP API (sostituisce Railway Express)
+const apiSrc = path.join(root, 'api')
+if (existsSync(apiSrc)) {
+  execSync(`cp -r "${apiSrc}" "${path.join(dist, 'api')}"`)
 }
 
 const html = `<!DOCTYPE html>
