@@ -1,8 +1,8 @@
 // Mirrors the role of UserDefaults + DataPersistenceManager in the iOS app.
-// localStorage is used as the local cache; PostgreSQL (via Express) is the
+// localStorage is used as the local cache; MySQL (via PHP API su Aruba) is the
 // source of truth — synced on every save/update and loaded fresh on login.
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
+const API_BASE = import.meta.env.VITE_API_URL || '/matchmyfit'
 
 // Fire-and-forget: write a search result to the server DB
 function _serverSave(result) {

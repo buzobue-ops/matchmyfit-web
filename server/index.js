@@ -5,7 +5,9 @@ const { Pool } = require('pg')
 const { registerAuthEmailRoutes } = require('./authEmail')
 
 // ─── PostgreSQL ─────────────────────────────────────────────────────────────
-// Set DATABASE_URL in Railway environment variables.
+// DEPRECATED: questo server Express era deployato su Railway.
+// Sostituito da api/ (PHP su Aruba) + n8n. Vedi docs/MIGRAZIONE-RAILWAY.md
+// Set DATABASE_URL in environment variables (legacy Railway / dev locale).
 // If not set, history API returns empty (graceful degradation).
 let db = null
 if (process.env.DATABASE_URL) {
@@ -185,32 +187,12 @@ app.post('/api/outfit', async (req, res) => {
   await proxyJSON(N8N_OUTFIT_URL, outfitBody, res, 300000) // 5 min — 3 elaborazioni
 })
 
-// ─── Freemium quota & subscription (proxy to n8n) ───────────────────────────
-// Web fallback path. On iOS the native bridge handles these directly.
-const N8N_CHECK_QUOTA_URL   = 'https://buzobue.app.n8n.cloud/webhook/check-quota'
-const N8N_RECORD_USAGE_URL  = 'https://buzobue.app.n8n.cloud/webhook/record-usage'
-const N8N_SUB_SYNC_URL      = 'https://buzobue.app.n8n.cloud/webhook/subscription-sync'
+// ─── Freemium quota & subscription (MySQL via PHP su Aruba) ─────────────────
+// Le route n8n sotto sono state rimosse: la versione PostgreSQL locale (più sotto)
+// era già quella attiva in Express (doppia registrazione). PHP replica lo stesso schema.
 
-// Check if user can start a new analysis (before each search/outfit)
-app.post('/api/quota/check', async (req, res) => {
-  console.log('[quota/check] userId =', req.body.userId)
-  await proxyJSON(N8N_CHECK_QUOTA_URL, req.body, res, 10000)
-})
-
-// Record a completed analysis (increment usage_count)
-app.post('/api/quota/record', async (req, res) => {
-  console.log('[quota/record] userId =', req.body.userId, 'kind =', req.body.kind)
-  await proxyJSON(N8N_RECORD_USAGE_URL, req.body, res, 10000)
-})
-
-// Sync subscription after StoreKit purchase
-app.post('/api/subscription/sync', async (req, res) => {
-  console.log('[subscription/sync] userId =', req.body.userId, 'productId =', req.body.productId)
-  await proxyJSON(N8N_SUB_SYNC_URL, req.body, res, 10000)
-})
-
-// ─── OAuth relay callback (Soluzione B: HTTPS relay → matchmyfit:// scheme) ──
-// Register https://matchmyfit.up.railway.app/api/oauth/callback in Google Cloud Console.
+// ─── OAuth relay callback (HTTPS relay → matchmyfit:// scheme) ──
+// Register https://www.zerodb.studio/matchmyfit/api/oauth/callback in Google Cloud Console.
 // Google redirects here with ?code=xxx, this endpoint redirects to the native scheme.
 // This relay avoids the "invalid redirect URI" error with custom URL schemes.
 app.get('/api/oauth/callback', (req, res) => {

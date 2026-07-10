@@ -16,6 +16,8 @@ import { getUserPhotoSrc, getUserInitials, resizePhotoFile } from '../../utils/u
 import { checkAnalysisQuota, recordCompletedAnalysis, showNativePaywall } from '../../services/quotaService.js'
 import { t } from '../../i18n/index.js'
 
+const API_BASE = import.meta.env.VITE_API_URL || '/matchmyfit'
+
 // ─── Inline style constants ───────────────────────────────────────────────
 const S = {
   ink:    '#111111',
@@ -541,7 +543,7 @@ function MiniRatingRow({ searchId, productName, userId, username }) {
     if (sent) return
     setSent(true)
     try {
-      await fetch('/api/feedback', {
+      await fetch(`${API_BASE}/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: userId || '', username: username || '', rating, feedback: '', page: 'result', searchId: searchId || '', productName: productName || '' }),
@@ -849,7 +851,7 @@ function FeedbackModal({ user, onClose }) {
     if (rating === 0) { setError('Seleziona almeno una stella.'); return }
     setIsSending(true); setError(null)
     try {
-      const res = await fetch('/api/feedback', {
+      const res = await fetch(`${API_BASE}/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, username: user.username || '', rating, feedback: text.trim(), page: 'search' }),

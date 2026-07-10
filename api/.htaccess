@@ -1,0 +1,16 @@
+# API router — tutte le richieste /matchmyfit/api/* → index.php
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /matchmyfit/api/
+
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Payload JSON grandi (foto profilo in base64)
+<IfModule mod_php.c>
+  php_value upload_max_filesize 64M
+  php_value post_max_size 64M
+  php_value max_execution_time 300
+</IfModule>
