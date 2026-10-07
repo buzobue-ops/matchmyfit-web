@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
   <meta name="theme-color" content="#111111" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
   <title>Prova capo · FitMyCart Alpha</title>
   <link rel="icon" type="image/png" href="../icon.png" />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -339,7 +341,8 @@
       setGarmentFromUrl(URL.createObjectURL(blob), name)
     }
 
-    const SAMPLE_URL = new URL('./samples/camicia.png', window.location.href).href
+    // Cache-bust: forza il download della camicia vera (non la tee pixel vecchia)
+    const SAMPLE_URL = new URL('./samples/camicia.png?v=3', window.location.href).href
 
     function loadSample() {
       els.dropHint.hidden = false
