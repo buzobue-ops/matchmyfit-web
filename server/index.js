@@ -187,6 +187,39 @@ app.post('/api/outfit', async (req, res) => {
   await proxyJSON(N8N_OUTFIT_URL, outfitBody, res, 300000) // 5 min — 3 elaborazioni
 })
 
+// ─── Decart realtime try-on: mint short-lived client token ───────────────────
+app.post('/api/decart/token', async (req, res) => {
+  const apiKey = process.env.DECART_API_KEY || ''
+  if (!apiKey) {
+    return res.status(503).json({ error: 'Decart non configurato (DECART_API_KEY)' })
+  }
+  try {
+    const expiresIn = Math.min(900, Math.max(60, Number(req.body?.expiresIn) || 300))
+    const maxSessionDuration = Number(req.body?.maxSessionDuration) || 180
+    const response = await fetch('https://api.decart.ai/v1/client/tokens', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        expiresIn,
+        allowedModels: ['lucy-vton-latest', 'lucy-vton-3.5'],
+        constraints: { realtime: { maxSessionDuration } },
+      }),
+    })
+    const data = await response.json()
+    if (!response.ok || !data.apiKey) {
+      console.error('[decart/token]', response.status, data)
+      return res.status(response.status || 502).json({ error: data.detail || data.error || 'Token mint failed' })
+    }
+    res.json({ apiKey: data.apiKey, expiresAt: data.expiresAt || null, model: 'lucy-vton-latest' })
+  } catch (err) {
+    console.error('[decart/token]', err.message)
+    res.status(502).json({ error: err.message })
+  }
+})
+
 // ─── Freemium quota & subscription (MySQL via PHP su Aruba) ─────────────────
 // Le route n8n sotto sono state rimosse: la versione PostgreSQL locale (più sotto)
 // era già quella attiva in Express (doppia registrazione). PHP replica lo stesso schema.
