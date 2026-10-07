@@ -186,26 +186,26 @@
       <span class="alpha">Alpha · Framing</span>
     </div>
     <h1>Inquadra.<span>Scatta.</span></h1>
-    <p class="lede">Prova il capo in diretta (overlay on-device, zero crediti AI). Quando l’inquadratura ti convince, scatta — poi potremo collegare il flusso analisi già in app.</p>
+    <p class="lede">Fitting room on-device: prova resa e experience. C’è già un capo di esempio — apri, inquadra, scatta.</p>
 
     <div class="panel">
-      <div class="label">1 · Capo</div>
+      <div class="label">Capo di esempio (già pronto)</div>
       <div class="drop" id="drop" role="button" tabindex="0">
         <div class="hint" id="dropHint">
-          <strong>Carica l’immagine del capo</strong>
-          Meglio su sfondo chiaro / ritagliato
+          <strong>Caricamento…</strong>
+          Tee navy di esempio
         </div>
         <img id="garmentPreview" alt="" hidden />
       </div>
       <input type="file" id="file" accept="image/*" />
-      <div class="row">
-        <input class="field" id="garmentUrl" type="url" placeholder="Oppure URL immagine…" />
-        <button class="btn ghost" type="button" id="loadUrl">OK</button>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost block" type="button" id="useSample">Ricarica esempio</button>
       </div>
+      <p class="note" style="margin-top:10px">Tocca l’anteprima se vuoi sostituirlo con una tua foto del capo.</p>
     </div>
 
     <div class="panel">
-      <div class="label">2 · Tipo capo</div>
+      <div class="label">Tipo capo</div>
       <div class="seg" id="kindSeg">
         <button type="button" class="on" data-kind="top">Top / giacca</button>
         <button type="button" data-kind="bottom">Pantaloni / gonna</button>
@@ -214,7 +214,7 @@
 
     <button class="btn block warm" type="button" id="enter" disabled>Apri fitting room</button>
     <p class="err" id="lobbyErr"></p>
-    <p class="note">Tutto resta sul dispositivo (MediaPipe). Serve HTTPS o localhost e permesso camera. Alpha: overlay geometrico, non fotorealistico — serve a validare inquadratura + scatto.</p>
+    <p class="note">Zero server/crediti AI. Solo camera sul telefono. Alpha: overlay geometrico per validare inquadratura + scatto.</p>
   </div>
 
   <div class="room" id="room" aria-hidden="true">
@@ -269,8 +269,7 @@
       dropHint: document.getElementById('dropHint'),
       file: document.getElementById('file'),
       garmentPreview: document.getElementById('garmentPreview'),
-      garmentUrl: document.getElementById('garmentUrl'),
-      loadUrl: document.getElementById('loadUrl'),
+      useSample: document.getElementById('useSample'),
       kindSeg: document.getElementById('kindSeg'),
       enter: document.getElementById('enter'),
       lobbyErr: document.getElementById('lobbyErr'),
@@ -312,8 +311,7 @@
 
     function setStatus(t) { els.statusPill.textContent = t }
 
-    function setGarmentFromBlob(blob, name) {
-      const url = URL.createObjectURL(blob)
+    function setGarmentFromUrl(url, name) {
       const img = new Image()
       img.onload = () => {
         garmentImg = img
@@ -322,11 +320,25 @@
         els.garmentPreview.hidden = false
         els.dropHint.hidden = true
         els.enter.disabled = false
+        err('')
       }
       img.onerror = () => err('Immagine non valida')
       img.src = url
     }
 
+    function setGarmentFromBlob(blob, name) {
+      setGarmentFromUrl(URL.createObjectURL(blob), name)
+    }
+
+    const SAMPLE_URL = new URL('./samples/tee.png', window.location.href).href
+
+    function loadSample() {
+      els.dropHint.hidden = false
+      els.dropHint.innerHTML = '<strong>Capo di esempio</strong>Tee navy · pronto'
+      setGarmentFromUrl(SAMPLE_URL, 'Tee navy (esempio)')
+    }
+
+    els.useSample.addEventListener('click', loadSample)
     els.drop.addEventListener('click', () => els.file.click())
     els.drop.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.file.click() }
@@ -335,19 +347,9 @@
       const f = els.file.files?.[0]
       if (f) { err(''); setGarmentFromBlob(f, f.name) }
     })
-    els.loadUrl.addEventListener('click', async () => {
-      err('')
-      const url = els.garmentUrl.value.trim()
-      if (!url) return
-      try {
-        const res = await fetch(url)
-        if (!res.ok) throw new Error('Download fallito')
-        const blob = await res.blob()
-        setGarmentFromBlob(blob, url.split('/').pop())
-      } catch {
-        err('URL non raggiungibile (CORS). Prova a scaricare e caricare il file.')
-      }
-    })
+
+    // Capo già pronto all’apertura
+    loadSample()
 
     els.kindSeg.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-kind]')
