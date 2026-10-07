@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#111111" />
+  <title>Try-On Live · FitMyCart Alpha</title>
+  <link rel="icon" type="image/png" href="../icon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #111111;
+      --warm: #C8A882;
+      --muted: #8C8279;
+      --cream: #F5F0E8;
+      --surface: #FDFAF5;
+      --border: #E2DAD0;
+      --red: #C94040;
+      --green: #3A7A3A;
+      --serif: 'Cormorant Garamond', Georgia, serif;
+      --sans: 'DM Sans', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 0%, rgba(200,168,130,0.18), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(17,17,17,0.06), transparent 50%),
+        var(--cream);
+      color: var(--ink);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea { font: inherit; }
+    .shell {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100dvh;
+      padding: 20px 18px 40px;
+      display: flex;
+      flex-direction: column;
+    }
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .brand {
+      font-family: var(--serif);
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      text-decoration: none;
+      color: var(--ink);
+    }
+    .brand em { color: var(--warm); font-style: italic; font-weight: 400; }
+    .alpha {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--warm);
+      border: 1px solid rgba(200,168,130,0.45);
+      padding: 5px 10px;
+      background: rgba(200,168,130,0.12);
+    }
+    .hero-brand {
+      font-family: var(--serif);
+      font-size: clamp(42px, 12vw, 56px);
+      font-weight: 700;
+      line-height: 0.95;
+      margin: 8px 0 12px;
+      letter-spacing: -0.03em;
+    }
+    .hero-brand span { display: block; color: var(--warm); font-style: italic; font-weight: 400; }
+    .lede {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.45;
+      max-width: 34ch;
+      margin: 0 0 28px;
+      font-weight: 300;
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .drop {
+      border: 1.5px dashed rgba(200,168,130,0.55);
+      background:
+        repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(200,168,130,0.06) 40px),
+        rgba(200,168,130,0.05);
+      min-height: 160px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: border-color .2s, background .2s;
+    }
+    .drop:hover, .drop.drag { border-color: var(--warm); background: rgba(200,168,130,0.12); }
+    .drop img {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: contain;
+      background: #fff;
+      padding: 12px;
+    }
+    .drop .hint { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16px; z-index: 1; }
+    .drop .hint strong { color: var(--ink); font-weight: 600; display: block; margin-bottom: 4px; }
+    input[type="file"] { display: none; }
+    .row { display: flex; gap: 8px; margin-top: 12px; }
+    .field {
+      flex: 1;
+      border: 1.5px solid var(--border);
+      background: #fff;
+      padding: 12px 14px;
+      font-size: 14px;
+      color: var(--ink);
+      outline: none;
+      width: 100%;
+    }
+    .field:focus { border-color: var(--warm); }
+    textarea.field { min-height: 72px; resize: vertical; line-height: 1.4; }
+    .btn {
+      appearance: none;
+      border: none;
+      cursor: pointer;
+      padding: 14px 18px;
+      font-size: 15px;
+      font-weight: 600;
+      background: var(--ink);
+      color: #fff;
+      transition: transform .15s, opacity .15s, background .15s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn.warm { background: var(--warm); color: var(--ink); }
+    .btn.ghost {
+      background: transparent;
+      color: var(--ink);
+      border: 1.5px solid var(--border);
+    }
+    .btn.block { width: 100%; }
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin-top: 16px;
+    }
+    .err {
+      color: var(--red);
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+    }
+    .err.show { display: block; }
+
+    /* Fit room */
+    .room {
+      position: fixed; inset: 0;
+      background: #0a0a0a;
+      z-index: 50;
+      display: none;
+      flex-direction: column;
+    }
+    .room.open { display: flex; }
+    .stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #111;
+    }
+    .stage video {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+    .stage .sparkle {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      background:
+        radial-gradient(circle at 30% 40%, rgba(200,168,130,0.35), transparent 40%),
+        radial-gradient(circle at 70% 60%, rgba(255,255,255,0.2), transparent 35%);
+      transition: opacity .4s;
+    }
+    .stage.busy .sparkle { opacity: 1; animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: .35; }
+      50% { opacity: .7; }
+    }
+    .hud {
+      position: absolute; top: 0; left: 0; right: 0;
+      padding: max(14px, env(safe-area-inset-top)) 16px 0;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      z-index: 2;
+    }
+    .pill {
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(8px);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .pill.ok { color: #b8e0b8; }
+    .pill.warn { color: #f0d9a8; }
+    .dock {
+      padding: 14px 16px max(18px, env(safe-area-inset-bottom));
+      background: linear-gradient(to top, #0a0a0a, #141414);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .dock .preview {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .dock .preview img {
+      width: 52px; height: 52px;
+      object-fit: contain;
+      background: #fff;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .dock .preview .meta { flex: 1; min-width: 0; }
+    .dock .preview .meta .t {
+      color: #fff; font-size: 14px; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .dock .preview .meta .s { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 2px; }
+    .dock .actions { display: flex; gap: 8px; }
+    .dock .actions .btn { flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="shell" id="lobby">
+    <div class="top">
+      <a class="brand" href="../">Fit<em>My</em>Cart</a>
+      <span class="alpha">Alpha · Live Try-On</span>
+    </div>
+
+    <h1 class="hero-brand">Provalo.<span>In diretta.</span></h1>
+    <p class="lede">Webcam + capo = try-on realistico in realtime (Decart Lucy VTON). Alpha: usa luce buona e un capo a figura intera su sfondo chiaro.</p>
+
+    <div class="panel">
+      <div class="label">1 · Capo da indossare</div>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Carica immagine capo">
+        <div class="hint" id="dropHint">
+          <strong>Tocca o trascina l’immagine</strong>
+          PNG / JPG del capo (meglio su sfondo bianco)
+        </div>
+        <img id="garmentPreview" alt="" hidden />
+      </div>
+      <input type="file" id="file" accept="image/*" />
+      <div class="row">
+        <input class="field" id="garmentUrl" type="url" placeholder="Oppure URL immagine prodotto…" />
+        <button class="btn ghost" type="button" id="loadUrl">Carica</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="label">2 · Prompt (opzionale)</div>
+      <textarea class="field" id="prompt" placeholder="Es. Substitute the current top with a navy blue hoodie with white drawstrings"></textarea>
+      <p class="note">Se vuoto usiamo un prompt generico. In inglese i risultati Decart sono più stabili.</p>
+    </div>
+
+    <button class="btn block warm" type="button" id="enter" disabled>Entra nella fitting room</button>
+    <p class="err" id="lobbyErr"></p>
+    <p class="note">Serve HTTPS (o localhost), permesso camera e connessione stabile. Sessione max ~3 minuti in alpha. La API key resta sul server: il browser riceve solo un token temporaneo.</p>
+  </div>
+
+  <div class="room" id="room" aria-hidden="true">
+    <div class="stage" id="stage">
+      <video id="remoteVideo" autoplay playsinline muted></video>
+      <div class="sparkle"></div>
+      <div class="hud">
+        <span class="pill" id="statusPill">Connessione…</span>
+        <button class="pill" type="button" id="exit" style="cursor:pointer;background:rgba(201,64,64,0.35)">Esci</button>
+      </div>
+    </div>
+    <div class="dock">
+      <div class="preview">
+        <img id="dockThumb" alt="" />
+        <div class="meta">
+          <div class="t" id="dockTitle">Capo selezionato</div>
+          <div class="s" id="dockSub">Live try-on · Lucy VTON</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" type="button" id="changeGarment" style="color:#fff;border-color:rgba(255,255,255,0.2)">Cambia capo</button>
+        <button class="btn warm" type="button" id="reapply">Riapplica</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createDecartClient, models } from 'https://esm.sh/@decartai/sdk@0.2.7'
+
+    const API_BASE = new URL('../api', window.location.href).pathname.replace(/\/$/, '')
+    // When served as file:// or odd paths, fall back to absolute Aruba path
+    const tokenUrl = `${API_BASE}/decart/token`
+
+    const els = {
+      drop: document.getElementById('drop'),
+      dropHint: document.getElementById('dropHint'),
+      file: document.getElementById('file'),
+      garmentPreview: document.getElementById('garmentPreview'),
+      garmentUrl: document.getElementById('garmentUrl'),
+      loadUrl: document.getElementById('loadUrl'),
+      prompt: document.getElementById('prompt'),
+      enter: document.getElementById('enter'),
+      lobbyErr: document.getElementById('lobbyErr'),
+      room: document.getElementById('room'),
+      stage: document.getElementById('stage'),
+      remoteVideo: document.getElementById('remoteVideo'),
+      statusPill: document.getElementById('statusPill'),
+      exit: document.getElementById('exit'),
+      dockThumb: document.getElementById('dockThumb'),
+      dockTitle: document.getElementById('dockTitle'),
+      dockSub: document.getElementById('dockSub'),
+      changeGarment: document.getElementById('changeGarment'),
+      reapply: document.getElementById('reapply'),
+    }
+
+    let garmentBlob = null
+    let garmentName = ''
+    let cameraStream = null
+    let rtClient = null
+
+    const DEFAULT_PROMPT =
+      'Substitute the current clothing with the garment shown in the reference image. Keep body shape, pose, lighting and face unchanged.'
+
+    function showLobbyError(msg) {
+      els.lobbyErr.textContent = msg || ''
+      els.lobbyErr.classList.toggle('show', !!msg)
+    }
+
+    function setStatus(text, kind = '') {
+      els.statusPill.textContent = text
+      els.statusPill.className = 'pill' + (kind ? ' ' + kind : '')
+    }
+
+    function setGarment(blob, name) {
+      garmentBlob = blob
+      garmentName = name || 'Capo'
+      const url = URL.createObjectURL(blob)
+      els.garmentPreview.src = url
+      els.garmentPreview.hidden = false
+      els.dropHint.hidden = true
+      els.dockThumb.src = url
+      els.dockTitle.textContent = garmentName
+      els.enter.disabled = false
+    }
+
+    async function blobFromUrl(url) {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Impossibile scaricare l'immagine (${res.status})`)
+      const blob = await res.blob()
+      if (!blob.type.startsWith('image/')) throw new Error('URL non punta a un’immagine')
+      return blob
+    }
+
+    els.drop.addEventListener('click', () => els.file.click())
+    els.drop.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.file.click() }
+    })
+    ;['dragenter', 'dragover'].forEach((ev) => {
+      els.drop.addEventListener(ev, (e) => { e.preventDefault(); els.drop.classList.add('drag') })
+    })
+    ;['dragleave', 'drop'].forEach((ev) => {
+      els.drop.addEventListener(ev, (e) => { e.preventDefault(); els.drop.classList.remove('drag') })
+    })
+    els.drop.addEventListener('drop', (e) => {
+      const f = e.dataTransfer?.files?.[0]
+      if (f) setGarment(f, f.name)
+    })
+    els.file.addEventListener('change', () => {
+      const f = els.file.files?.[0]
+      if (f) setGarment(f, f.name)
+    })
+    els.loadUrl.addEventListener('click', async () => {
+      showLobbyError('')
+      const url = els.garmentUrl.value.trim()
+      if (!url) return
+      try {
+        const blob = await blobFromUrl(url)
+        setGarment(blob, url.split('/').pop() || 'Capo da URL')
+      } catch (err) {
+        showLobbyError(err.message || 'URL non valido')
+      }
+    })
+
+    async function fetchToken() {
+      const res = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiresIn: 300, maxSessionDuration: 180 }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.apiKey) {
+        throw new Error(data.error || `Token Decart non disponibile (${res.status})`)
+      }
+      return data.apiKey
+    }
+
+    async function startCamera(model) {
+      return navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: 'user',
+          width: { ideal: model?.width || 720 },
+          height: { ideal: model?.height || 1280 },
+          frameRate: { ideal: model?.fps || 25 },
+        },
+      })
+    }
+
+    function openRoom() {
+      els.room.classList.add('open')
+      els.room.setAttribute('aria-hidden', 'false')
+    }
+    function closeRoom() {
+      els.room.classList.remove('open')
+      els.room.setAttribute('aria-hidden', 'true')
+      els.stage.classList.remove('busy')
+    }
+
+    async function applyGarment() {
+      if (!rtClient || !garmentBlob) return
+      els.stage.classList.add('busy')
+      setStatus('Applico il capo…', 'warn')
+      const prompt = (els.prompt.value.trim() || DEFAULT_PROMPT)
+      try {
+        if (typeof rtClient.set === 'function') {
+          await rtClient.set({ prompt, image: garmentBlob, enhance: false })
+        } else if (typeof rtClient.setImage === 'function') {
+          await rtClient.setImage(garmentBlob, { prompt, enhance: false })
+        }
+        setStatus('Live try-on', 'ok')
+      } catch (err) {
+        setStatus('Errore apply', '')
+        console.error(err)
+      } finally {
+        els.stage.classList.remove('busy')
+      }
+    }
+
+    async function enterFitRoom() {
+      showLobbyError('')
+      if (!garmentBlob) {
+        showLobbyError('Carica prima un’immagine del capo.')
+        return
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        showLobbyError('Questo browser non supporta la camera.')
+        return
+      }
+
+      els.enter.disabled = true
+      els.enter.textContent = 'Connessione…'
+      openRoom()
+      setStatus('Avvio camera…')
+
+      try {
+        const model = models.realtime('lucy-vton-latest')
+        const [stream, apiKey] = await Promise.all([
+          startCamera(model),
+          fetchToken(),
+        ])
+        cameraStream = stream
+        setStatus('Collegamento Decart…')
+
+        const client = createDecartClient({
+          apiKey,
+          // Refresh token on reconnect if the SDK supports it
+          apiKeyProvider: async () => fetchToken(),
+        })
+
+        rtClient = await client.realtime.connect(stream, {
+          model,
+          mirror: 'auto',
+          onRemoteStream: (remote) => {
+            els.remoteVideo.srcObject = remote
+            setStatus('Live try-on', 'ok')
+          },
+          initialState: {
+            image: garmentBlob,
+            prompt: { text: els.prompt.value.trim() || DEFAULT_PROMPT, enhance: false },
+          },
+        })
+
+        if (rtClient?.on) {
+          rtClient.on('connectionChange', (state) => {
+            if (state === 'connected' || state === 'generating') setStatus('Live try-on', 'ok')
+            else if (state === 'connecting' || state === 'reconnecting') setStatus(String(state), 'warn')
+            else setStatus(String(state))
+          })
+          rtClient.on('error', (err) => {
+            setStatus(err?.message || 'Errore', '')
+          })
+        }
+
+        els.dockSub.textContent = 'Live try-on · Lucy VTON'
+      } catch (err) {
+        console.error(err)
+        await leaveFitRoom()
+        showLobbyError(err.message || 'Connessione fallita')
+      } finally {
+        els.enter.disabled = !garmentBlob
+        els.enter.textContent = 'Entra nella fitting room'
+      }
+    }
+
+    async function leaveFitRoom() {
+      try { rtClient?.disconnect?.() } catch { /* */ }
+      rtClient = null
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((t) => t.stop())
+        cameraStream = null
+      }
+      els.remoteVideo.srcObject = null
+      closeRoom()
+    }
+
+    els.enter.addEventListener('click', enterFitRoom)
+    els.exit.addEventListener('click', leaveFitRoom)
+    els.reapply.addEventListener('click', applyGarment)
+    els.changeGarment.addEventListener('click', () => {
+      leaveFitRoom()
+      els.file.click()
+    })
+
+    window.addEventListener('pagehide', () => { leaveFitRoom() })
+  </script>
+</body>
+</html>

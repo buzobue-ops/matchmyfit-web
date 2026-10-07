@@ -449,4 +449,75 @@ if ($method === 'POST' && $path === '/subscription/sync') {
     send_json(200, ['ok' => true]);
 }
 
+// ─── Decart realtime try-on: mint short-lived client token ────────────────
+// Permanent key stays server-side. Browser riceve solo un token efimero.
+
+if ($method === 'POST' && ($path === '/decart/token' || $path === '/tokens')) {
+    if (rate_limited('decart:' . client_ip(), 30, 15 * 60 * 1000)) {
+        send_json(429, ['error' => 'Troppi tentativi. Riprova tra qualche minuto.']);
+    }
+
+    $apiKey = trim((string) ($config['decart_api_key'] ?? ''));
+    if ($apiKey === '') {
+        send_json(503, ['error' => 'Decart non configurato (manca decart_api_key in config.php)']);
+    }
+
+    $body = json_body();
+    $expiresIn = (int) ($body['expiresIn'] ?? 300);
+    if ($expiresIn < 60) {
+        $expiresIn = 60;
+    }
+    if ($expiresIn > 900) {
+        $expiresIn = 900;
+    }
+
+    $origins = $config['decart_allowed_origins'] ?? ($config['allowed_origins'] ?? []);
+    $payload = [
+        'expiresIn' => $expiresIn,
+        'allowedModels' => ['lucy-vton-latest', 'lucy-vton-3.5'],
+        'constraints' => [
+            'realtime' => [
+                'maxSessionDuration' => (int) ($body['maxSessionDuration'] ?? 180),
+            ],
+        ],
+    ];
+    if (is_array($origins) && count($origins) > 0) {
+        $payload['allowedOrigins'] = array_values(array_filter($origins));
+    }
+
+    $ch = curl_init('https://api.decart.ai/v1/client/tokens');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_SLASHES),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'x-api-key: ' . $apiKey,
+        ],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $raw = curl_exec($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($raw === false) {
+        send_json(502, ['error' => 'Decart unreachable: ' . $err]);
+    }
+
+    $decoded = json_decode($raw, true);
+    if ($status < 200 || $status >= 300 || !is_array($decoded) || empty($decoded['apiKey'])) {
+        error_log('[decart/token] HTTP ' . $status . ' ' . $raw);
+        send_json($status >= 400 ? $status : 502, [
+            'error' => is_array($decoded) ? ($decoded['detail'] ?? $decoded['error'] ?? 'Token mint failed') : 'Token mint failed',
+        ]);
+    }
+
+    send_json(200, [
+        'apiKey' => $decoded['apiKey'],
+        'expiresAt' => $decoded['expiresAt'] ?? null,
+        'model' => 'lucy-vton-latest',
+    ]);
+}
+
 send_json(404, ['error' => 'Not found']);

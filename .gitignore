@@ -1,5 +1,6 @@
 # Copia in api/config.php sul server Aruba (non committare con segreti reali)
 api/config.php
+dist/api/config.php
 
 # Env locale build
 .env

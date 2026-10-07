@@ -40,4 +40,16 @@ return [
     'n8n_allowed_host' => 'buzobue.app.n8n.cloud',
 
     'free_analysis_limit' => 2,
+
+    // Decart realtime try-on (lucy-vton). NEVER esporre nel frontend.
+    // Ottieni la key da https://platform.decart.ai — mintiamo solo token efimeri.
+    'decart_api_key' => '',
+
+    // Origini consentite per i client token Decart (oltre a quelle CORS)
+    'decart_allowed_origins' => [
+        'https://www.zerodb.studio',
+        'https://zerodb.studio',
+        'http://localhost:5173',
+        'http://localhost:8080',
+    ],
 ];
