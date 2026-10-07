@@ -119,7 +119,9 @@
     }
     .stage video, .stage canvas {
       position: absolute; inset: 0; width: 100%; height: 100%;
-      object-fit: cover;
+      /* contain = niente crop sul faccione: si vede busto/braccia per il selfie col capo */
+      object-fit: contain;
+      background: #0a0a0a;
     }
     .stage video { opacity: 0; pointer-events: none; }
     .stage canvas { transform: scaleX(-1); }
@@ -134,10 +136,17 @@
       padding: 8px 11px; backdrop-filter: blur(8px);
     }
     .guide {
-      position: absolute; inset: 12% 18% 22%;
-      border: 1px dashed rgba(200,168,130,.35);
-      border-radius: 40% 40% 28% 28%;
+      position: absolute; inset: 8% 10% 18%;
+      border: 1px dashed rgba(200,168,130,.4);
+      border-radius: 18px;
       pointer-events: none; z-index: 2;
+    }
+    .guide::after {
+      content: 'Allontana il telefono · inquadra spalle + busto';
+      position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+      white-space: nowrap; font-size: 10px; letter-spacing: .06em;
+      text-transform: uppercase; color: rgba(200,168,130,.85);
+      background: rgba(0,0,0,.45); padding: 4px 8px;
     }
     .dock {
       padding: 12px 14px max(16px, env(safe-area-inset-bottom));
@@ -185,23 +194,23 @@
       <a class="brand" href="../">Fit<em>My</em>Cart</a>
       <span class="alpha">Alpha · Framing</span>
     </div>
-    <h1>Inquadra.<span>Scatta.</span></h1>
-    <p class="lede">Fitting room on-device: prova resa e experience. C’è già un capo di esempio — apri, inquadra, scatta.</p>
+    <h1>Selfie.<span>Col capo.</span></h1>
+    <p class="lede">Camicia già caricata. Apri la fitting room, allontana un po’ il telefono (spalle + busto), scatta.</p>
 
     <div class="panel">
-      <div class="label">Capo di esempio (già pronto)</div>
+      <div class="label">Capo di default</div>
       <div class="drop" id="drop" role="button" tabindex="0">
         <div class="hint" id="dropHint">
           <strong>Caricamento…</strong>
-          Tee navy di esempio
+          Camicia blu
         </div>
         <img id="garmentPreview" alt="" hidden />
       </div>
       <input type="file" id="file" accept="image/*" />
       <div class="row" style="margin-top:10px">
-        <button class="btn ghost block" type="button" id="useSample">Ricarica esempio</button>
+        <button class="btn ghost block" type="button" id="useSample">Ricarica camicia</button>
       </div>
-      <p class="note" style="margin-top:10px">Tocca l’anteprima se vuoi sostituirlo con una tua foto del capo.</p>
+      <p class="note" style="margin-top:10px">Tocca l’anteprima per usare un altro capo.</p>
     </div>
 
     <div class="panel">
@@ -231,14 +240,14 @@
       <div class="sliders">
         <div>
           <label>Scala</label>
-          <input type="range" id="scale" min="70" max="160" value="110" />
+          <input type="range" id="scale" min="70" max="180" value="125" />
         </div>
         <div>
           <label>Offset Y</label>
           <input type="range" id="offsetY" min="-40" max="40" value="0" />
         </div>
       </div>
-      <div class="meta" id="dockMeta">Allinea spalle al capo, poi scatta</div>
+      <div class="meta" id="dockMeta">Allontana il telefono · inquadra spalle e busto, poi scatta</div>
       <div class="actions">
         <button class="btn ghost" type="button" id="flip" style="color:#fff;border-color:rgba(255,255,255,.2);flex:0 0 auto">Flip</button>
         <button class="btn shutter" type="button" id="snap" aria-label="Scatta"></button>
@@ -330,12 +339,12 @@
       setGarmentFromUrl(URL.createObjectURL(blob), name)
     }
 
-    const SAMPLE_URL = new URL('./samples/tee.png', window.location.href).href
+    const SAMPLE_URL = new URL('./samples/camicia.png', window.location.href).href
 
     function loadSample() {
       els.dropHint.hidden = false
-      els.dropHint.innerHTML = '<strong>Capo di esempio</strong>Tee navy · pronto'
-      setGarmentFromUrl(SAMPLE_URL, 'Tee navy (esempio)')
+      els.dropHint.innerHTML = '<strong>Camicia blu</strong>Default · pronta'
+      setGarmentFromUrl(SAMPLE_URL, 'Camicia blu')
     }
 
     els.useSample.addEventListener('click', loadSample)
@@ -378,14 +387,26 @@
 
     async function startCamera() {
       if (stream) stream.getTracks().forEach((t) => t.stop())
+      // Ideal portrait selfie: più alto che largo, zoom minimo (evita faccione)
       stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-          facingMode,
+          facingMode: { ideal: facingMode },
           width: { ideal: 720 },
           height: { ideal: 1280 },
+          aspectRatio: { ideal: 0.5625 },
+          // Alcuni browser/WebView rispettano zoom; altrimenti forziamo dopo
+          advanced: [{ zoom: 1 }],
         },
       })
+      const track = stream.getVideoTracks()[0]
+      try {
+        const caps = track.getCapabilities?.() || {}
+        if (caps.zoom) {
+          const minZoom = caps.zoom.min ?? 1
+          await track.applyConstraints({ advanced: [{ zoom: minZoom }] })
+        }
+      } catch { /* zoom non supportato */ }
       els.cam.srcObject = stream
       await els.cam.play()
     }
@@ -481,13 +502,13 @@
       const scaleUser = Number(els.scale.value) / 100
       const offY = (Number(els.offsetY.value) / 100) * h
 
-      const drawW = shoulderW * (kind === 'top' ? 2.05 : 1.55) * scaleUser
-      const aspect = garmentImg.naturalWidth / garmentImg.naturalHeight
+      // Camicie maniche lunghe: un po' più larghe delle spalle pure
+      const drawW = shoulderW * (kind === 'top' ? 2.35 : 1.55) * scaleUser
+      const aspect = garmentImg.naturalWidth / Math.max(1, garmentImg.naturalHeight)
       let drawH = drawW / aspect
-      // Prefer torso height for tops if garment is very tall/short
       if (kind === 'top') {
-        const targetH = torsoH * 1.15 * scaleUser
-        drawH = (drawH + targetH) / 2
+        const targetH = torsoH * 1.35 * scaleUser
+        drawH = Math.max(drawH * 0.85, targetH)
       } else {
         drawH = Math.max(drawH, torsoH * 0.95 * scaleUser)
       }
